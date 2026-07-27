@@ -68,6 +68,12 @@ search:
     keep-pos: NNG, NNP, SL, SN   # 색인·검색 대상 품사 (변경 시 전체 재색인 필요)
   keyword:
     popular-refresh-cron: "0 */10 * * * *"  # 인기 검색어 MV 자동 갱신 (10분마다)
+  extract:
+    cron: "0 0 1 * * *"          # 파일 텍스트 추출 (매일 새벽 1시)
+    months: 1                    # 최근 N개월 파일만 대상
+    # 선언된 확장자만 추출 처리 (대소문자 무시)
+    # DOC~CSV: Apache Tika(POI·PDFBox) / HWP·HWPX: hwplib·hwpxlib (rhwp는 Rust/WASM이라 자바 미지원 — 대체)
+    extensions: DOC, DOCX, XLS, XLSX, PPT, PPTX, PDF, TXT, CSV, HWP, HWPX
   result:
     group-size: 10                          # 통합검색 그룹당 노출 건수 (초과 시 "더보기") — 그룹 순서는 doc-types 순서
     summary-length: 2000                    # 목록 출력 본문 길이

@@ -23,4 +23,5 @@ public class SearchSource {
     private String category;
     private OffsetDateTime updatedAt;           // 원본 수정일
     private String contentHash;                 // 변경 감지용 md5
+    private String originPath;                  // 원본파일전체경로 (FILE 외 NULL) — 텍스트 추출 배치용
 }

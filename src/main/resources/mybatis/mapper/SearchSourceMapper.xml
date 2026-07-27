@@ -4,7 +4,7 @@
 <mapper namespace="com.gonet.search.mapper.SearchSourceMapper">
 
     <sql id="sourceColumns">
-        s.doc_type, s.doc_id, s.title, s.body, s.link_url, s.category, s.updated_at, s.content_hash
+        s.doc_type, s.doc_id, s.title, s.body, s.link_url, s.category, s.updated_at, s.content_hash, s.origin_path
     </sql>
 
     <!-- 해시 diff: 색인에 없거나 원문 해시가 달라진 문서만 (DESIGN.md 4.4 - 1단계) -->

@@ -2,6 +2,7 @@ package com.gonet.search.web.adm;
 
 import com.gonet.search.config.SearchDocTypes;
 import com.gonet.search.mapper.SearchIndexMapper;
+import com.gonet.search.service.FileExtractService;
 import com.gonet.search.service.IndexingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
@@ -23,6 +24,7 @@ import java.util.Map;
 public class IndexAdmController {
 
     private final IndexingService indexingService;
+    private final FileExtractService fileExtractService;
     private final SearchIndexMapper searchIndexMapper;
     private final SearchDocTypes docTypes;
 
@@ -37,6 +39,7 @@ public class IndexAdmController {
         model.addAttribute("counts", counts);
         model.addAttribute("total", searchIndexMapper.count(null));
         model.addAttribute("lastResult", indexingService.getLastResult());
+        model.addAttribute("lastExtract", fileExtractService.getLastResult());
         return "adm/index";
     }
 
@@ -51,6 +54,13 @@ public class IndexAdmController {
     @PostMapping("/rebuild")
     public String rebuild() {
         indexingService.rebuildAll();
+        return "redirect:/adm/index";
+    }
+
+    /** 파일 추출 — 최근 1개월 파일의 본문을 원본 경로에서 추출해 색인에 반영 (마스킹 포함) */
+    @PostMapping("/extract")
+    public String extract() {
+        fileExtractService.extractRecent();
         return "redirect:/adm/index";
     }
 }

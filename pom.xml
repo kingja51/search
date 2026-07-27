@@ -20,6 +20,7 @@
     <properties>
         <java.version>21</java.version>
         <lucene.version>10.4.0</lucene.version>
+        <tika.version>3.3.1</tika.version>
     </properties>
 
     <dependencies>
@@ -76,6 +77,29 @@
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-analysis-nori</artifactId>
             <version>${lucene.version}</version>
+        </dependency>
+
+        <!-- 파일 텍스트 추출: Apache Tika(내부 POI·PDFBox 포함 — DOC/DOCX/XLS/XLSX/PPT/PPTX/PDF/TXT/CSV) -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>${tika.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-parsers-standard-package</artifactId>
+            <version>${tika.version}</version>
+        </dependency>
+        <!-- HWP/HWPX 텍스트 추출 (rhwp는 Rust/WASM npm 라이브러리라 자바에서 사용 불가 — 자바 표준 대체) -->
+        <dependency>
+            <groupId>kr.dogfoot</groupId>
+            <artifactId>hwplib</artifactId>
+            <version>1.1.9</version>
+        </dependency>
+        <dependency>
+            <groupId>kr.dogfoot</groupId>
+            <artifactId>hwpxlib</artifactId>
+            <version>1.0.5</version>
         </dependency>
 
         <!-- 캐시 -->

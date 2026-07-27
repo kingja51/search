@@ -33,8 +33,21 @@
         </p>
     </div>
 
+    <!-- 파일 추출 결과 -->
+    <div class="bg-white border border-gray-200 rounded-xl p-4 mb-5 text-[13px]">
+        <h2 class="text-sm font-semibold mb-2">파일 텍스트 추출 (매일 01:00 자동 + 수동)</h2>
+        <p th:if="${lastExtract == null}" class="text-gray-400">이번 기동 이후 실행 이력이 없습니다.</p>
+        <p th:if="${lastExtract != null}" class="text-gray-700">
+            대상 <span class="font-semibold" th:text="${lastExtract.targets}">0</span>건 중
+            반영 <span class="font-semibold text-primary" th:text="${lastExtract.extracted}">0</span>건
+            · 건너뜀 <span th:text="${lastExtract.skipped}">0</span>건
+            · 실패 <span class="text-red-600" th:text="${lastExtract.failed}">0</span>건
+            · <span th:text="${lastExtract.elapsedMs}">0</span>ms
+        </p>
+    </div>
+
     <!-- 실행 버튼 -->
-    <div class="flex gap-3">
+    <div class="flex flex-wrap gap-3">
         <form th:action="@{/adm/index/sync}" method="post">
             <button type="submit"
                     class="px-5 py-2.5 rounded-lg bg-primary text-white text-[14px] cursor-pointer hover:bg-primary/90">
@@ -42,15 +55,25 @@
             </button>
         </form>
         <form th:action="@{/adm/index/rebuild}" method="post"
-              onsubmit="return confirm('전체 재색인을 실행합니다. 문서 수가 많으면 시간이 걸릴 수 있습니다. 계속하시겠습니까?');">
+              onsubmit="return confirm('전체 재색인을 실행합니다. 문서 수가 많으면 시간이 걸릴 수 있습니다.\n※ 파일 추출로 반영된 본문은 초기화되므로 재색인 후 [파일 추출]을 다시 실행하세요. 계속하시겠습니까?');">
             <button type="submit"
                     class="px-5 py-2.5 rounded-lg bg-gray-800 text-white text-[14px] cursor-pointer hover:bg-gray-700">
                 전체 재색인 (전량 재분석)
             </button>
         </form>
+        <form th:action="@{/adm/index/extract}" method="post"
+              onsubmit="return confirm('최근 1개월 파일의 본문을 원본 경로에서 추출해 색인에 반영합니다. 파일 수에 따라 시간이 걸릴 수 있습니다. 계속하시겠습니까?');">
+            <button type="submit"
+                    class="px-5 py-2.5 rounded-lg bg-emerald-600 text-white text-[14px] cursor-pointer hover:bg-emerald-500">
+                파일 추출 (최근 1개월)
+            </button>
+        </form>
     </div>
     <p class="mt-3 text-[12px] text-gray-500">
-        동기화는 content_hash 비교로 변경분만 처리합니다. 단어사전·품사 설정 변경 후에는 전체 재색인을 실행하세요.
+        동기화는 content_hash 비교로 변경분만 처리합니다. 단어사전·품사 설정 변경 후에는 전체 재색인을 실행하세요.<br>
+        파일 추출은 선언된 확장자(DOC/DOCX/XLS/XLSX/PPT/PPTX/PDF/TXT/CSV/HWP/HWPX)만 처리하며,
+        추출 본문은 <span class="font-semibold">개인정보 마스킹 후</span> 색인에 반영됩니다.
+        <span class="text-red-500">전체 재색인 시 추출 본문이 초기화되므로 재색인 후 파일 추출을 다시 실행하세요.</span>
     </p>
 </main>
 </body>

@@ -11,4 +11,18 @@
         WHERE id = #{id}
     </select>
 
+    <!-- 텍스트 추출 대상: 최근 N개월 + 선언 확장자만 (파일 텍스트 추출 배치) -->
+    <select id="findExtractTargets" resultType="File">
+        SELECT id, file_name, file_ext, file_path
+        FROM tn_file
+        WHERE status = 'ACTIVE'
+          AND file_path IS NOT NULL
+          AND updated_at &gt;= #{fromTs}
+          AND upper(file_ext) IN
+          <foreach collection="extensions" item="ext" open="(" separator="," close=")">
+              #{ext}
+          </foreach>
+        ORDER BY id
+    </select>
+
 </mapper>

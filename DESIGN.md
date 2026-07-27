@@ -852,6 +852,22 @@ WHERE NOT EXISTS (
   content_hash가 갱신되므로 이후 스케줄 동기화와 자연스럽게 이어짐
 - 스케줄 사이에 즉시 반영이 필요하면 수동 트리거 (어드민 개발 전에는 앱 재기동 시 1회 동기화 옵션으로 대응)
 
+**파일 텍스트 추출 배치 (FileExtractService)** — 파일 본문을 원본 파일에서 추출해 색인에 반영:
+
+```
+대상 선정: tn_file 최근 N개월(search.extract.months, 기본 1) + 선언 확장자만(search.extract.extensions)
+  → 원본파일전체경로(vw_file_search.origin_path = tn_file.file_path)에서 본문 추출
+  → 개인정보 마스킹(MaskingUtil, DB 반영 전 필수) → Nori 분석
+  → tn_search_index(summary·tokens) UPDATE (content_hash는 유지 — diff 동기화가 덮어쓰지 않음)
+```
+
+- 실행: **매일 새벽 1시 스케줄**(search.extract.cron) + 어드민 [파일 추출] 버튼(수동)
+- 추출기: DOC/DOCX/XLS/XLSX/PPT/PPTX/PDF/TXT/CSV = **Apache Tika**(내부 POI·PDFBox) /
+  HWP = **hwplib**, HWPX = **hwpxlib** (kr.dogfoot — 요청 참조된 rhwp는 Rust+WASM/npm이라 자바 미사용, 동일 역할 자바 라이브러리로 대체)
+- 파일 없음/읽기 불가·색인 미존재 건은 건너뛰고 로그, 실패 건은 개별 격리(전체 배치 중단 없음)
+- ⚠️ **전체 재색인은 vw_search_source(extract_text) 기준으로 색인을 다시 만들므로 추출 반영 내용이 초기화됨**
+  → 재색인 후 [파일 추출]을 다시 실행할 것 (어드민 화면 경고 표시)
+
 ### 4.5 인기 검색어 자동 생성 (KeywordLogService)
 
 인기 검색어는 `log_search_keyword`를 집계한 MATERIALIZED VIEW(`vw_search_popular_keyword`)를
@@ -1187,3 +1203,4 @@ templates/
 22. **감사 컬럼 6종을 전 테이블 표준화** — created_at/ip/by + updated_at/ip/by. MyBatis AuditInterceptor(BaseEntity 상속 파라미터에 자동 주입) + ClientIpHolder(ThreadLocal), 배치는 system/서버IP. 로그 테이블은 감사 컬럼이 검색 시각·검색자 IP 역할을 겸함(중복 컬럼 제거).
 23. **데이터 액세스는 MyBatis (JPA 미사용)** — FTS 네이티브 쿼리(tsquery·윈도우 함수·upsert)가 핵심인 프로젝트라 SQL을 XML 매퍼로 직접 통제. 도메인은 순수 POJO, snake_case↔camelCase 자동 매핑, 스키마는 Flyway 전담.
 24. **개인정보 마스킹은 색인 시점** — MaskingUtil(주민 전체·카드·휴대폰·이메일·생년월일)로 title/body를 마스킹 후 색인. 색인 DB 미저장·검색 채널 차단·성능 무영향. 뷰어는 표시 시점 보조 마스킹. 생년월일은 라벨 문맥 기반(일반 날짜 오탐 방지). 패턴 변경 시 전체 재색인.
+25. **파일 본문은 배치 추출로 보강** — 매일 01시 + 수동 버튼, 최근 1개월·선언 확장자만. Tika(오피스·PDF·텍스트) + hwplib/hwpxlib(HWP/HWPX — rhwp는 Rust/WASM이라 자바 대체). 마스킹 후 tn_search_index를 직접 UPDATE(해시 유지로 diff와 공존). 전체 재색인 시 추출 내용 초기화 → 재실행 필요.
