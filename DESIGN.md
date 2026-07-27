@@ -1090,7 +1090,7 @@ templates/
 | 자동완성 | `GET /api/autocomplete?q=` | AutocompleteApiController | `hx-trigger="keyup changed delay:300ms"` → 드롭다운 fragment |
 | 인기 검색어 | `GET /api/keyword/popular` | KeywordApiController | 메인 로드 시 1회 (MV 10분 자동 갱신) |
 | 추천 검색어 | `GET /api/keyword/recommend` | KeywordApiController | 메인·결과 상단 노출, 클릭 시 검색 |
-| 내 검색어 | `GET /api/keyword/my` | KeywordApiController | 검색창 포커스 시 드롭다운 (session_id 우선, IP 폴백) |
+| 내 검색어 | `GET /api/keyword/my` | KeywordApiController | API 제공 (session_id 우선, IP 폴백) — 검색창 포커스 드롭다운은 **인기 검색어** 노출 |
 | 사전 관리 | `GET /adm/dic/{word\|synonym\|banned\|recommend}` | DicAdmController | ※ 추후 — 목록/추가/수정/삭제 fragment 교체 (인라인 편집) |
 | 색인 관리 | `GET /adm/index` · `POST /adm/index/sync` · `POST /adm/index/rebuild` | IndexAdmController | ※ 추후 — 진행률 폴링 (`hx-trigger="every 1s"`) |
 | 검색 통계 | `GET /adm/stats` | StatsAdmController | ※ 추후 — 기간별 검색량, 인기검색어, 무결과 검색어 |

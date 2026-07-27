@@ -25,7 +25,20 @@
     </ol>
 </div>
 
-<!-- 내 검색어: 검색창 포커스 시 드롭다운 (session -> IP 폴백) -->
+<!-- 인기 검색어 드롭다운: 검색창 포커스(빈 입력) 시 노출 -->
+<div th:fragment="popularDropdown" th:if="${!#lists.isEmpty(popular)}"
+     class="bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+    <p class="px-4 pt-2.5 pb-1 text-[11px] font-semibold text-gray-400">인기 검색어</p>
+    <a th:each="p, st : ${popular}" th:href="@{/result(q=${p.keyword})}"
+       class="flex items-center gap-2 px-4 py-2 text-[13px] hover:bg-gray-50">
+        <span class="w-4 text-center font-bold"
+              th:classappend="${st.index < 3} ? 'text-primary' : 'text-gray-400'"
+              th:text="${st.count}">1</span>
+        <span th:text="${p.keyword}">키워드</span>
+    </a>
+</div>
+
+<!-- 내 검색어: API(/api/keyword/my) 용 fragment (session -> IP 폴백) -->
 <div th:fragment="myKeywords" th:if="${!#lists.isEmpty(myKeywords)}"
      class="bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
     <p class="px-4 pt-2.5 pb-1 text-[11px] font-semibold text-gray-400">내 검색어</p>

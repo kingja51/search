@@ -1,9 +1,7 @@
 package com.gonet.search.web.api;
 
-import com.gonet.search.config.ClientIpHolder;
 import com.gonet.search.service.AutocompleteService;
 import com.gonet.search.service.KeywordLogService;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -14,7 +12,7 @@ import java.util.List;
 
 /**
  * 자동완성 API — pg_trgm 유사도 기반 색인 제목 추천 (DESIGN.md 8장).
- * 검색창 UX: 입력이 비어 있으면(포커스 직후) 내 검색어 드롭다운, 2글자 이상이면 자동완성.
+ * 검색창 UX: 입력이 비어 있으면(포커스 직후) 인기 검색어 드롭다운, 2글자 이상이면 자동완성.
  */
 @Controller
 @RequiredArgsConstructor
@@ -27,14 +25,12 @@ public class AutocompleteApiController {
     private final KeywordLogService keywordLogService;
 
     @GetMapping("/api/autocomplete")
-    public String autocomplete(@RequestParam(value = "q", required = false) String q,
-                               HttpServletRequest request, Model model) {
+    public String autocomplete(@RequestParam(value = "q", required = false) String q, Model model) {
         String query = q == null ? "" : q.strip();
         if (query.isEmpty()) {
-            // 포커스 직후: 내 검색어 노출
-            model.addAttribute("myKeywords", keywordLogService.myKeywords(
-                    request.getSession().getId(), ClientIpHolder.get(), LIMIT));
-            return "usr/keywords :: myKeywords";
+            // 포커스 직후: 인기 검색어 노출
+            model.addAttribute("popular", keywordLogService.popularKeywords(LIMIT));
+            return "usr/keywords :: popularDropdown";
         }
         if (query.length() < MIN_LENGTH) {
             return "usr/keywords :: empty";
