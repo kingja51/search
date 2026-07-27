@@ -12,6 +12,7 @@
 - **데이터 액세스: MyBatis (XML 매퍼) — JPA 사용 금지**
 - PostgreSQL 18 (FTS: tsvector 'simple' + GIN, pg_trgm) · Flyway (V1~V4)
 - Thymeleaf + Layout Dialect + HTMX (SPA 아님, fragment 부분 렌더링)
+- 스타일: **Tailwind CSS v4 CDN** (`@tailwindcss/browser@4`, 레이아웃 head에 로드) — 인라인 style 대신 Tailwind 클래스 사용. 테마 색상은 `@theme`의 `--color-primary`(#2563eb) → `text-primary`/`bg-primary`
 - Lucene `lucene-analysis-nori` (형태소 분석은 자바 레이어에서 수행)
 - Caffeine 캐시 · Actuator + Prometheus + Micrometer Tracing(Brave)
 

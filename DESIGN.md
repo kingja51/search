@@ -56,7 +56,7 @@ Elasticsearch 같은 별도 검색 서버 없이 **PostgreSQL 18의 Full-Text Se
 | Build | Maven | |
 | DB | PostgreSQL 18 | FTS(tsvector/tsquery), GIN, pg_trgm |
 | 형태소 분석 | `org.apache.lucene:lucene-analysis-nori` (10.4.0) | 앱 내장 라이브러리로 사용 (compile 스코프 — API 직접 사용) |
-| View | Thymeleaf + Layout Dialect + HTMX | 레이아웃: `templates/layout/search/` |
+| View | Thymeleaf + Layout Dialect + HTMX + **Tailwind CSS v4 (CDN)** | 레이아웃: `templates/layout/search/`. Tailwind는 `@tailwindcss/browser@4` CDN + `@theme`(--color-primary). 운영 전환 시 빌드 방식 검토 |
 | 캐시 | Caffeine (Spring Cache) | 사전·인기/추천검색어·자동완성 캐시, 통계 노출 |
 | 관측성 | Actuator + Micrometer(Prometheus) + Tracing(Brave) | 메트릭 수집, 로그 traceId/spanId 연동 |
 | 마이그레이션 | Flyway | 스키마 버전 관리 (V1~V4) |

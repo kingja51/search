@@ -6,32 +6,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title layout:title-pattern="$CONTENT_TITLE - 통합검색">통합검색</title>
     <script th:src="@{/webjars/htmx.org/2.0.4/dist/htmx.min.js}" defer></script>
-    <style>
-        :root { --primary: #2563eb; --border: #e5e7eb; --text: #111827; --muted: #6b7280; }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; color: var(--text); }
-        a { color: inherit; text-decoration: none; }
-        mark { background: #fef08a; padding: 0 1px; }
-        .container { max-width: 860px; margin: 0 auto; padding: 0 16px; }
-        header.site { border-bottom: 1px solid var(--border); padding: 14px 0; }
-        header.site .container { display: flex; align-items: center; gap: 12px; }
-        header.site .logo { font-size: 18px; font-weight: 700; color: var(--primary); }
-        footer.site { border-top: 1px solid var(--border); margin-top: 48px; padding: 20px 0; color: var(--muted); font-size: 12px; text-align: center; }
+    <!-- Tailwind CSS v4 (CDN — 운영 전환 시 빌드 방식 검토) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style type="text/tailwindcss">
+        @theme {
+            --color-primary: #2563eb;
+        }
+        mark {
+            background-color: #fef08a;
+            padding: 0 1px;
+            border-radius: 2px;
+        }
     </style>
 </head>
-<body>
-<header class="site">
-    <div class="container">
-        <a class="logo" th:href="@{/}">🔍 통합검색</a>
+<body class="min-h-screen flex flex-col bg-white text-gray-900">
+<header class="border-b border-gray-200">
+    <div class="max-w-3xl mx-auto px-4 py-3.5 flex items-center gap-3">
+        <a class="text-lg font-bold text-primary" th:href="@{/}">🔍 통합검색</a>
     </div>
 </header>
 
-<main class="container" layout:fragment="content">
+<main class="max-w-3xl mx-auto px-4 w-full flex-1" layout:fragment="content">
     <!-- 각 페이지 본문이 여기에 채워진다 -->
 </main>
 
-<footer class="site">
-    <div class="container">search engine · PostgreSQL 18 + Nori</div>
+<footer class="border-t border-gray-200 mt-12 py-5 text-center text-xs text-gray-400">
+    search engine · PostgreSQL 18 + Nori
 </footer>
 </body>
 </html>
