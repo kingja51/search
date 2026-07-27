@@ -723,7 +723,7 @@ LIMIT :size OFFSET :offset;
 | 제목 | `tn_search_index.title` | 키워드 하이라이트 적용 |
 | 내용 | `tn_search_index.summary` (본문 앞 **2000자**) | 키워드 하이라이트 적용, 화면에는 키워드 주변 발췌 우선 |
 | 등록일 | `tn_search_index.source_updated_at` | `yyyy.MM.dd` 표기 |
-| 링크 | `tn_search_index.link_url` | 제목 클릭 시 이동 |
+| 링크(원본) | `tn_search_index.link_url` | 제목 클릭 시 이동 + 결과 하단에 **원본 URL 텍스트를 항상 표기** (클릭 가능) |
 
 **전체 탭 = 카테고리(도메인)별 그룹 출력**: 설정된 그룹 순서대로 각 그룹 **10건씩** 보여주고,
 그룹 총건수가 10을 넘으면 그룹 하단에 **"더보기 (N건)"** 버튼 → 클릭 시 해당 카테고리 탭으로 전환되어

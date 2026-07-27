@@ -2,6 +2,8 @@ server:
   port: ${SERVER_PORT:8080}
   servlet:
     context-path: /search        # 모든 URL은 /search 하위로 서빙
+    session:
+      tracking-modes: cookie     # URL 리라이팅(;jsessionid=...) 방지 — 링크(원본) 표기를 깨끗하게 유지
   forward-headers-strategy: framework   # X-Forwarded-For 처리 (클라이언트 IP 추출)
 
 spring:

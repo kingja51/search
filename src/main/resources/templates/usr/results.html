@@ -160,14 +160,17 @@
     </th:block>
 </main>
 
-<!-- 결과 1건 fragment: 제목·내용(발췌)·등록일·링크 + <mark> 하이라이트 (escape는 HighlightService에서 완료) -->
-<div th:fragment="resultItem(item)" class="py-3 border-b border-gray-100">
-    <a th:href="@{${item.linkUrl}}" class="text-[15px] font-semibold hover:underline" th:utext="${item.title}">제목</a>
+<!-- 결과 1건 fragment: 제목·내용(발췌)·등록일·링크(원본) + <mark> 하이라이트 (escape는 HighlightService에서 완료) -->
+<div th:fragment="resultItem(item)" class="py-3 border-b border-gray-100" th:with="originUrl=@{${item.linkUrl}}">
+    <a th:href="${originUrl}" class="text-[15px] font-semibold hover:underline" th:utext="${item.title}">제목</a>
     <p class="my-1.5 text-[13px] leading-relaxed text-gray-700" th:utext="${item.summary}">내용</p>
-    <span class="text-xs text-gray-400">
+    <div class="flex flex-wrap items-center gap-x-2 text-xs text-gray-400">
         <span th:text="${item.regDate}">2026.07.27</span>
-        <span th:if="${item.category}" th:text="' · ' + ${item.category}"></span>
-    </span>
+        <span th:if="${item.category}" th:text="'· ' + ${item.category}"></span>
+        <span class="text-gray-300">·</span>
+        <span>원본:</span>
+        <a th:href="${originUrl}" class="text-green-700 hover:underline break-all" th:text="${originUrl}">/search/content/1</a>
+    </div>
 </div>
 
 <!-- 무한스크롤 페이지 fragment: 결과 N건 + 다음 페이지 sentinel (hx-trigger="revealed") -->
