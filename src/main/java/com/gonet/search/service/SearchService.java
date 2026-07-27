@@ -123,12 +123,12 @@ public class SearchService {
         OffsetDateTime fromTs = resolveFromTs(cond);
         OffsetDateTime toTs = resolveToTs(cond);
 
-        // 5) FTS 실행 (span: search.query)
+        // 5) FTS 실행 (span: search.fts — Timer "search.query"와 이름이 겹치면 메트릭 등록이 거부되므로 구분)
         SearchResponse res = new SearchResponse();
         res.setQ(q);
         res.setPage(cond.getPage());
         res.setSize(cond.getSize());
-        observe("search.query", () -> {
+        observe("search.fts", () -> {
             List<KeyCount> typeCounts = searchMapper.countByType(tsquery, fromTs, toTs);
             long grandTotal = typeCounts.stream().mapToLong(KeyCount::getCount).sum();
             res.getTabCounts().put("ALL", grandTotal);
@@ -265,7 +265,7 @@ public class SearchService {
         keywordLogService.logAsync(entry);
     }
 
-    /** 단계별 span 기록 (search.analyze / expand / query / highlight) */
+    /** 단계별 span 기록 (search.analyze / expand / fts / highlight) */
     private <T> T observe(String name, Supplier<T> supplier) {
         return Observation.createNotStarted(name, observationRegistry).observe(supplier);
     }

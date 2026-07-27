@@ -5,10 +5,15 @@
 
 ## 현재 상태 요약 (2026-07-27)
 
-- **완료**: 설계 확정 → 1단계(기반 구축, MyBatis 전환) → 2단계(분석·색인) → 3단계(검색 코어) → 4단계(UI) → 5단계(캐시·관측성)
+- **완료**: 설계 확정 → 1~5단계 구현 → **전체 실동작 검증 완료 (2026-07-27)**
 - **적용 스택 변화**: Lucene 10.4.0 · Tailwind CSS v4 CDN
-- **대기 중인 검증**: 로컬 PostgreSQL 18 미설치 → 앱 기동 + Flyway + 색인·검색·UI·메트릭 실동작 확인 불가
-- **다음 작업**: PostgreSQL 준비 → 전체 실동작 검증 → 6단계(마무리)
+- **검증 결과** (postgres DB / search 스키마 / search_user 최소권한 계정):
+  - 기동: Flyway baseline(V4) 인정 → 정상 부팅, 색인 동기화 36건(변경 없으면 diff 0건 확인)
+  - 검색: "휴대폰" → 동의어(핸드폰·스마트폰) `<mark>` 하이라이트 ✓ · 금지어 차단 ✓ · 검색 로그(토큰·IP·traceId) ✓
+  - 위젯: 자동완성 10건 ✓ · 추천 검색어 9건(기간 필터 정확) ✓ · 인기 검색어(로그→MV→캐시 순환) ✓
+  - 관측성: 단계별 span 4종 + search.query Timer(doc_type·blocked) + 캐시 히트율 + index.documents 게이지 ✓
+    (span과 Timer의 search.query 이름 충돌 발견 → span을 search.fts로 분리)
+- **다음 작업**: 6단계(마무리 — 인덱스 튜닝·Grafana·README 보강·v1.0 태그)
 
 ---
 

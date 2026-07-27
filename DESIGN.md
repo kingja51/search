@@ -675,7 +675,7 @@ Analyzer analyzer = new KoreanAnalyzer(
 4. 동의어 확장        synonyms 캐시 조회 → (휴대폰 | 핸드폰 | 스마트폰)  ← span: search.expand
 5. tsquery 생성       op=AND: (휴대폰|핸드폰|스마트폰) & 케이스 · op=OR: (…) | 케이스
                       qPrev 있으면 이전 검색식과 & 결합 (결과 내 재검색)
-6. FTS 실행           tn_search_index에서 정렬·필터 적용 + 페이징      ← span: search.query
+6. FTS 실행           tn_search_index에서 정렬·필터 적용 + 페이징      ← span: search.fts
 7. 하이라이트         토큰+동의어를 <mark> 처리, 발췌 생성            ← span: search.highlight
 8. 로그 기록          @Async 비동기 저장 (traceId·IP·세션 포함, 응답 지연 없음)
 ```
@@ -1017,7 +1017,8 @@ management:
 ```
 
 - `@Async` 로그 기록·`@Scheduled` 스케줄 스레드에도 trace 전파: `ContextPropagatingTaskDecorator`를 Executor에 등록
-- 검색 파이프라인 내부 구간별 span 분리: `@Observed(name = "search.analyze")` 등 단계별 어노테이션
+- 검색 파이프라인 내부 구간별 span 분리: Observation API로 search.analyze / expand / **fts** / highlight 4단계
+  (FTS span을 `search.query`로 하면 동명 Timer와 태그 구성이 달라 메트릭 등록이 거부됨 — 이름 분리)
 - log_search_keyword의 `trace_id` 컬럼 → 로그 테이블에서 앱 로그로 역추적 가능
 - (선택) 나중에 Zipkin을 띄우면 `zipkin-reporter-brave` 의존성만 추가하면 시각화 연동 완료
 
