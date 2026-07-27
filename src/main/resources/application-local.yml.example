@@ -1,0 +1,9 @@
+# 로컬 개발용 설정 예시.
+# 이 파일을 application-local.yml 로 복사한 뒤 본인 환경에 맞게 수정한다. (application-local.yml은 git 미추적)
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/search
+    username: postgres
+    password: postgres
+  thymeleaf:
+    cache: false

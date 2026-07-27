@@ -1,0 +1,49 @@
+server:
+  servlet:
+    context-path: /search        # 모든 URL은 /search 하위로 서빙
+  forward-headers-strategy: framework   # X-Forwarded-For 처리 (클라이언트 IP 추출)
+
+spring:
+  application:
+    name: search
+  profiles:
+    active: local                # DB 접속 정보는 application-local.yml (git 미추적)
+  jpa:
+    hibernate:
+      ddl-auto: none             # 스키마는 Flyway가 관리
+    open-in-view: false
+  task:
+    scheduling:
+      pool:
+        size: 2                  # 색인 동기화 + 인기검색어 MV 갱신
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
+
+management:
+  server:
+    port: 9090                   # 관리 포트 분리 (context path 영향 없음)
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus, caches
+  endpoint:
+    health:
+      show-details: when-authorized
+  tracing:
+    sampling:
+      probability: 1.0           # 개발: 100%, 운영: 0.1 권장
+
+search:
+  index:
+    sync-cron: "0 0 6,18 * * *"  # 색인 동기화 (매일 2회)
+    chunk-size: 500
+  analyzer:
+    keep-pos: NNG, NNP, SL, SN   # 색인·검색 대상 품사 (변경 시 전체 재색인 필요)
+  keyword:
+    popular-refresh-cron: "0 */10 * * * *"  # 인기 검색어 MV 자동 갱신 (10분마다)
+  result:
+    group-order: CONTENT, BBS, FILE, MENU   # 전체 탭 카테고리 그룹 출력 순서
+    group-size: 10                          # 그룹당 노출 건수 (초과 시 "더보기")
+    summary-length: 2000                    # 목록 출력 본문 길이

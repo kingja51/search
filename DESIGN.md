@@ -523,8 +523,9 @@ CREATE UNIQUE INDEX uq_vw_popular ON vw_search_popular_keyword (keyword);
 
 ### 3.6 샘플 데이터 (Flyway `V4__sample_data.sql`)
 
-개발·테스트용 샘플 데이터를 각 테이블 **10건씩** 제공한다. 전체 구문: [db/V4__sample_data.sql](db/V4__sample_data.sql)
-(프로젝트 스캐폴딩 시 `src/main/resources/db/migration/`으로 이동. 모든 INSERT는 `created_ip`, `created_by` 포함)
+개발·테스트용 샘플 데이터를 각 테이블 **10건씩** 제공한다.
+전체 구문: [src/main/resources/db/migration/V4__sample_data.sql](src/main/resources/db/migration/V4__sample_data.sql)
+(모든 INSERT는 `created_ip`, `created_by` 포함)
 
 | 테이블 | 샘플 구성 포인트 |
 |---|---|

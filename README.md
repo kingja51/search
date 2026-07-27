@@ -27,12 +27,18 @@ Spring Boot 3.5.9 · Java 21 · Maven · PostgreSQL 18 · Thymeleaf + HTMX · Lu
 ## 문서
 
 - **[설계서 (DESIGN.md)](DESIGN.md)** — DB 스키마(Flyway V1~V4), 아키텍처, 검색 파이프라인, 화면·API 명세, 설계 결정 22항
-- [샘플 데이터 (db/V4__sample_data.sql)](db/V4__sample_data.sql) — 테이블별 10건
+- [샘플 데이터 (V4__sample_data.sql)](src/main/resources/db/migration/V4__sample_data.sql) — 테이블별 10건
+
+## 실행 (로컬)
+
+1. PostgreSQL 18 기동 후 `search` DB 생성 (`CREATE DATABASE search;`)
+2. `src/main/resources/application-local.yml.example`을 `application-local.yml`로 복사해 DB 접속 정보 수정
+3. 실행: `mvn spring-boot:run` → http://localhost:8080/search/ (Flyway가 V1~V4 자동 적용)
 
 ## 상태
 
 - [x] 설계 확정 (v2.0, 2026-07)
-- [ ] 1단계: 기반 구축 (스캐폴딩 + Flyway + 엔티티)
+- [x] 1단계: 기반 구축 (스캐폴딩 + Flyway + 엔티티) — ※ 앱 기동 검증은 로컬 PostgreSQL 준비 후
 - [ ] 2단계: 분석·색인
 - [ ] 3단계: 검색 코어
 - [ ] 4단계: UI

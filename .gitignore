@@ -1,6 +1,10 @@
 # Claude Code local settings
 .claude/settings.local.json
 
+# Local config (DB 접속 정보)
+application-local.yml
+src/main/resources/application-local.yml
+
 # Maven
 target/
 
