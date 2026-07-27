@@ -26,6 +26,7 @@ public class SearchUsrController {
     public String result(@ModelAttribute("cond") SearchCondition cond,
                          HttpServletRequest request,
                          Model model) {
+        cond.applyQPrevRemove();                 // 재검색 칩 × 클릭 처리
         SearchResponse res = searchService.search(cond, request.getSession().getId());
         model.addAttribute("res", res);
         return "usr/results";
@@ -36,6 +37,7 @@ public class SearchUsrController {
     public String resultItems(@ModelAttribute("cond") SearchCondition cond,
                               HttpServletRequest request,
                               Model model) {
+        cond.applyQPrevRemove();
         SearchResponse res = searchService.search(cond, request.getSession().getId());
         model.addAttribute("res", res);
         return "usr/results :: itemsPage";

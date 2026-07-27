@@ -30,8 +30,18 @@ public class SearchCondition {
 
     private List<String> qPrev = new ArrayList<>();  // 결과 내 재검색 (이전 검색어, 항상 AND)
 
+    private String qPrevRemove;                 // 칩 × 클릭: 제거할 qPrev 항목 (서버에서 제거 처리)
+
     private int page = 0;
     private int size = 10;
+
+    /** qPrevRemove로 지정된 재검색 조건을 목록에서 제거 (칩 × 클릭 처리 — 컨트롤러 진입 시 호출) */
+    public void applyQPrevRemove() {
+        if (qPrevRemove != null && !qPrevRemove.isBlank()) {
+            qPrev.removeIf(qPrevRemove::equals);
+            qPrevRemove = null;
+        }
+    }
 
     public boolean isAllTab() {
         return type == null || type.isBlank() || "ALL".equalsIgnoreCase(type);

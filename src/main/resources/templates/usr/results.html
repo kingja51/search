@@ -32,7 +32,7 @@
             <span th:each="chip : ${cond.qPrev}"
                   class="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 rounded-full">
                 <span th:text="${chip}">이전검색어</span>
-                <a th:href="@{/result(q=${res.q}, type=${cond.type}, category=${cond.category}, sort=${cond.sort}, period=${cond.period}, op=${cond.op}, dateFrom=${cond.dateFrom}, dateTo=${cond.dateTo}, qPrev=${cond.qPrev.?[#this != chip]})}"
+                <a th:href="@{/result(q=${res.q}, type=${cond.type}, category=${cond.category}, sort=${cond.sort}, period=${cond.period}, op=${cond.op}, dateFrom=${cond.dateFrom}, dateTo=${cond.dateTo}, qPrev=${cond.qPrev}, qPrevRemove=${chip})}"
                    class="text-gray-400 hover:text-red-500 font-bold" title="이 조건 제거">×</a>
             </span>
             <span class="inline-flex items-center px-2.5 py-1 bg-primary/10 text-primary rounded-full font-semibold"
