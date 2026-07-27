@@ -111,7 +111,8 @@ Elasticsearch 같은 별도 검색 서버 없이 **PostgreSQL 18의 Full-Text Se
 | 사전 | `tn_search_dic_word` | 단어사전 (Nori 사용자 사전) |
 | 사전 | `tn_search_dic_synonym` | 동의어사전 (그룹 방식) |
 | 사전 | `tn_search_dic_banned` | 금지어사전 |
-| 색인 | `tn_search_index` | 통합 검색 색인 (tsvector + content_hash) |
+| 사전 | `tn_search_recommend_keyword` | 추천 검색어 (관리자 등록, 노출 기간·순서) |
+| 색인 | `tn_search_index` | 통합 검색 색인 (tsvector + content_hash + source_updated_at) |
 | VIEW | `vw_content_search` / `vw_file_search` / `vw_bbs_search` / `vw_menu_search` | 도메인별 색인 소스 정의 |
 | MV | `vw_search_popular_keyword` | 인기 검색어 집계 (7일) |
 | 로그 | `log_search_keyword` | 검색 키워드 로그 |
@@ -206,6 +207,23 @@ CREATE TABLE tn_search_dic_banned (
 );
 
 -- ─────────────────────────────────────────────
+-- 추천 검색어 (관리자 등록. 어드민 개발 전까지는 SQL로 관리)
+-- ─────────────────────────────────────────────
+CREATE TABLE tn_search_recommend_keyword (
+    id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    keyword       VARCHAR(100) NOT NULL,
+    display_order INT          NOT NULL DEFAULT 0,   -- 노출 순서 (낮을수록 먼저)
+    start_date    DATE,                              -- 노출 시작일 (NULL=상시)
+    end_date      DATE,                              -- 노출 종료일 (NULL=상시)
+    enabled       BOOLEAN      NOT NULL DEFAULT true,
+    memo          VARCHAR(300),
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    CONSTRAINT uq_recommend_keyword UNIQUE (keyword)
+);
+CREATE INDEX idx_recommend_order ON tn_search_recommend_keyword (display_order) WHERE enabled;
+
+-- ─────────────────────────────────────────────
 -- 검색 키워드 로그
 -- ─────────────────────────────────────────────
 CREATE TABLE log_search_keyword (
@@ -224,6 +242,7 @@ CREATE TABLE log_search_keyword (
 );
 CREATE INDEX idx_lsk_keyword  ON log_search_keyword (keyword);
 CREATE INDEX idx_lsk_searched ON log_search_keyword (searched_at);
+CREATE INDEX idx_lsk_ip       ON log_search_keyword (client_ip, searched_at DESC);  -- "내 검색어" 조회용
 ```
 
 ### 3.4 검색 대상 샘플 원본 DDL (Flyway `V2__sample_source.sql`)
@@ -330,7 +349,7 @@ SELECT 'MENU'                           AS doc_type,
        m.menu_name                      AS title,
        coalesce(m.description, '')      AS body,
        m.menu_path                      AS link_url,
-       NULL::varchar                    AS category,
+       coalesce(nullif(split_part(m.menu_path, '/', 2), ''), 'home') AS category,  -- 경로 1단계 = 메뉴 카테고리
        m.updated_at                     AS updated_at,
        md5(m.menu_name || '|' || coalesce(m.description,'') || '|' || m.menu_path) AS content_hash
 FROM tn_menu m
@@ -353,13 +372,15 @@ CREATE TABLE tn_search_index (
     category     VARCHAR(100),
     tokens       TEXT NOT NULL,                -- Nori 분석 결과 (공백 구분)
     content_hash VARCHAR(32) NOT NULL,         -- 색인 당시 vw_*_search.content_hash
+    source_updated_at TIMESTAMPTZ NOT NULL,    -- 원본 수정일 (최신순 정렬·기간 필터 기준)
     search_vec   TSVECTOR GENERATED ALWAYS AS (to_tsvector('simple', tokens)) STORED,
     indexed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (doc_type, doc_id)
 );
-CREATE INDEX idx_search_vec  ON tn_search_index USING GIN (search_vec);
-CREATE INDEX idx_search_trgm ON tn_search_index USING GIN (title gin_trgm_ops);  -- 자동완성용
-CREATE INDEX idx_search_type ON tn_search_index (doc_type);                      -- 탭 필터용
+CREATE INDEX idx_search_vec     ON tn_search_index USING GIN (search_vec);
+CREATE INDEX idx_search_trgm    ON tn_search_index USING GIN (title gin_trgm_ops);  -- 자동완성용
+CREATE INDEX idx_search_type    ON tn_search_index (doc_type, category);            -- 탭·카테고리 필터용
+CREATE INDEX idx_search_updated ON tn_search_index (source_updated_at DESC);        -- 최신순·기간 필터용
 
 -- ── 인기 검색어 집계 MV (로그 기반, 주기 갱신) ──
 CREATE MATERIALIZED VIEW vw_search_popular_keyword AS
@@ -375,6 +396,16 @@ LIMIT 100;
 CREATE UNIQUE INDEX uq_vw_popular ON vw_search_popular_keyword (keyword);
 -- 갱신: REFRESH MATERIALIZED VIEW CONCURRENTLY vw_search_popular_keyword;
 ```
+
+**VIEW별 카테고리 매핑** — 모든 `vw_*_search`가 `category` 컬럼을 노출하고, 검색 화면에서 탭(doc_type) 선택 시 해당 탭의 카테고리 필터로 사용된다:
+
+| doc_type (탭) | category 값의 출처 | 예 |
+|---|---|---|
+| CONTENT (컨텐츠) | `tn_content.category` | 회사, 서비스, 기술, 채용 … |
+| FILE (파일) | `tn_file.file_ext` | pdf, hwp, docx, xlsx … |
+| BBS (게시판) | `tn_bbs.board_cd` | notice, faq, free, qna |
+| MENU (메뉴) | `menu_path` 1단계 경로 | bbs, content, home … |
+| 전체 탭 | 카테고리 필터 미노출 (탭별 의미가 달라 혼합 불가) | |
 
 > **왜 tsvector를 `simple` 설정으로 쓰는가**: 형태소 분석을 Nori(자바)가 이미 끝냈으므로
 > PostgreSQL은 스테밍 없이 토큰을 그대로 색인만 하면 된다. 검색 품질 로직은 전부 앱이 통제한다.
@@ -396,6 +427,7 @@ CREATE UNIQUE INDEX uq_vw_popular ON vw_search_popular_keyword (keyword);
 | `tn_search_dic_word` | 고유명사(고넷) + 복합명사 분해(검색엔진→검색 엔진 등), 1건 비활성 |
 | `tn_search_dic_synonym` | 4개 그룹(휴대폰·검색엔진·문의·공지), 그룹당 대표어 1개 |
 | `tn_search_dic_banned` | BLOCK 8건 + MASK 2건, 1건 비활성 (해제 사례) |
+| `tn_search_recommend_keyword` | 상시 노출 7건 + 기간 한정 2건 + 비활성 1건, display_order 지정 |
 
 DELETED / use_yn='N' / enabled=false 데이터를 의도적으로 섞어 **색인 제외·사전 비활성 로직을 검증**할 수 있게 했다.
 
@@ -431,13 +463,14 @@ com.gonet.search
 │   ├─ SynonymService.java          # 동의어 확장 (캐시)
 │   ├─ BannedWordService.java       # 금지어 필터 (캐시)
 │   ├─ DictionaryService.java       # 사전 CRUD + 분석기 리로드 + 캐시 evict
-│   └─ KeywordLogService.java       # 로그 기록(@Async), 인기검색어
+│   ├─ RecommendKeywordService.java # 추천 검색어 조회 (노출기간·순서 필터, 캐시)
+│   └─ KeywordLogService.java       # 로그 기록(@Async), 인기검색어, 내 검색어(IP 기준)
 └─ web/
     ├─ usr/
     │   └─ SearchUsrController.java       # 검색 메인·결과 페이지 (HTMX fragment 포함)
     ├─ api/
     │   ├─ AutocompleteApiController.java # 자동완성
-    │   └─ KeywordApiController.java      # 인기 검색어
+    │   └─ KeywordApiController.java      # 인기·추천·내 검색어
     └─ adm/
         ├─ DicAdmController.java          # 사전 3종 관리 화면
         ├─ IndexAdmController.java        # 색인 동기화·전체 재색인
@@ -488,8 +521,27 @@ Analyzer analyzer = new KoreanAnalyzer(
 
 ### 4.3 검색 처리 흐름 (SearchService)
 
+검색 조건 파라미터:
+
+| 파라미터 | 값 | 기본값 | 설명 |
+|---|---|---|---|
+| `type` | ALL / CONTENT / FILE / BBS / MENU | ALL | 도메인 탭 |
+| `category` | 탭별 카테고리 값 | 없음(전체) | 탭 선택 시에만 노출 |
+| `sort` | `accuracy`(정확도) / `latest`(최신순) | accuracy | 정확도=ts_rank, 최신순=source_updated_at |
+| `period` | `6h`(실시간) / `1d`(1일) / `week`(이번주) / `month`(이번달) / `all` | all | 원본 수정일 기준 기간 필터 |
+
+기간 필터의 기준 시각 계산 (모두 `source_updated_at >= :fromTs`):
+
+| period | fromTs |
+|---|---|
+| `6h` (실시간) | `now() - interval '6 hours'` |
+| `1d` (1일) | `now() - interval '24 hours'` |
+| `week` (이번주) | `date_trunc('week', now())` — 월요일 0시부터 |
+| `month` (이번달) | `date_trunc('month', now())` — 1일 0시부터 |
+| `all` | 조건 없음 |
+
 ```
-1. 입력 정규화        trim, 최대 길이 제한, doc_type(탭) 파라미터 검증
+1. 입력 정규화        trim, 최대 길이 제한, type/category/sort/period 파라미터 검증
 2. 금지어 검사        bannedWords 캐시 조회 → BLOCK 포함 시 차단 응답 + is_blocked=true 로그
 3. 형태소 분석        Nori → [휴대폰, 케이스]                       ← span: search.analyze
 4. 동의어 확장        synonyms 캐시 조회 → (휴대폰 | 핸드폰 | 스마트폰)  ← span: search.expand
@@ -500,18 +552,42 @@ Analyzer analyzer = new KoreanAnalyzer(
 
 전 단계가 하나의 traceId로 묶이고, 단계별 소요시간은 span과 `search.query` Timer 메트릭으로 확인한다.
 
-핵심 네이티브 쿼리 (전체 탭은 doc_type 조건 생략, 탭별 건수는 `count(*) GROUP BY doc_type` 별도 쿼리):
+핵심 네이티브 쿼리 (탭별 건수는 `count(*) GROUP BY doc_type`, 카테고리별 건수는 `GROUP BY category` 별도 쿼리):
 
 ```sql
-SELECT doc_type, doc_id, title, summary, link_url, category,
+SELECT doc_type, doc_id, title, summary, link_url, category, source_updated_at,
        ts_rank(search_vec, query) AS rank
 FROM tn_search_index,
      to_tsquery('simple', :tsquery) query
 WHERE search_vec @@ query
-  AND (:docType IS NULL OR doc_type = :docType)
-ORDER BY rank DESC, doc_id DESC
+  AND (:docType  IS NULL OR doc_type = :docType)          -- 탭 (ALL이면 NULL)
+  AND (:category IS NULL OR category = :category)          -- 탭 내 카테고리
+  AND (:fromTs   IS NULL OR source_updated_at >= :fromTs)  -- 기간 (all이면 NULL)
+ORDER BY
+  CASE WHEN :sort = 'latest'   THEN NULL END,              -- 최신순: 아래 두 번째 키 사용
+  CASE WHEN :sort = 'latest'   THEN source_updated_at END DESC,
+  rank DESC, doc_id DESC                                   -- 정확도(기본): ts_rank
 LIMIT :size OFFSET :offset;
 ```
+
+정렬은 실제 구현 시 분기된 두 개의 쿼리(정확도용/최신순용)로 나누는 것을 권장 — CASE 정렬은 인덱스 활용이 어려우므로, 최신순 쿼리는 `ORDER BY source_updated_at DESC`로 고정해 `idx_search_updated`를 태운다.
+
+**내 검색어 (IP 기준)** — `log_search_keyword.client_ip`로 요청자의 최근 검색어를 되돌려준다:
+
+```sql
+SELECT keyword, max(searched_at) AS last_searched_at
+FROM log_search_keyword
+WHERE client_ip = :clientIp
+  AND is_blocked = false
+GROUP BY keyword                       -- 같은 키워드 중복 제거
+ORDER BY last_searched_at DESC
+LIMIT 10;
+```
+
+- IP 취득: 프록시/리버스프록시 뒤에서는 `X-Forwarded-For` 첫 값 사용 (`server.forward-headers-strategy: framework` 설정 + `request.getRemoteAddr()`)
+- 검색창 포커스 시 HTMX로 드롭다운 노출, 항목 클릭 → 재검색
+- 한계 명시: 공유기·사내망은 같은 공인 IP를 쓰므로 타인의 검색어가 섞일 수 있음 → 로그에 함께 저장하는 `session_id`(쿠키)와 AND 조건으로 우선 조회하고, 세션이 없을 때만 IP 단독 조회로 폴백
+- 개인정보 고려: 내 검색어는 본인 요청 IP에 대해서만 응답하며, 타인 IP를 파라미터로 조회하는 API는 제공하지 않음 (IP 파라미터 없음 — 서버가 요청에서 직접 추출)
 
 ### 4.4 색인 동기화 파이프라인 (IndexingService) — 매일 2회 스케줄 + 해시 비교
 
@@ -534,12 +610,13 @@ LEFT JOIN tn_search_index i
 WHERE i.doc_id IS NULL OR i.content_hash <> s.content_hash;
 
 -- 2) 앱에서 Nori 분석 후 배치 upsert (청크 500건)
-INSERT INTO tn_search_index (doc_type, doc_id, title, summary, link_url, category, tokens, content_hash)
+INSERT INTO tn_search_index (doc_type, doc_id, title, summary, link_url, category, tokens, content_hash, source_updated_at)
 VALUES (...)
 ON CONFLICT (doc_type, doc_id) DO UPDATE
 SET title = EXCLUDED.title, summary = EXCLUDED.summary, link_url = EXCLUDED.link_url,
     category = EXCLUDED.category, tokens = EXCLUDED.tokens,
-    content_hash = EXCLUDED.content_hash, indexed_at = now();
+    content_hash = EXCLUDED.content_hash, source_updated_at = EXCLUDED.source_updated_at,
+    indexed_at = now();
 
 -- 3) 삭제 반영: VIEW에서 사라진 문서(status=DELETED 등) 색인 제거
 DELETE FROM tn_search_index i
@@ -598,6 +675,7 @@ search:
 | `synonyms` | 단어 → 동의어 확장 집합 | 10,000 | 없음(수동) | 동의어사전 CRUD 시 전체 evict |
 | `bannedWords` | 금지어 전체 Set (단일 엔트리) | 1 | 없음(수동) | 금지어사전 CRUD 시 evict |
 | `popularKeywords` | 인기 검색어 TOP 10 | 1 | 1분 | TTL 자동 |
+| `recommendKeywords` | 추천 검색어 (노출기간 필터 적용분) | 1 | 10분 | TTL 자동 + 추천어 CRUD 시 evict |
 | `autocomplete` | 접두어 → 자동완성 후보 | 5,000 | 5분 | TTL 자동 |
 | `searchFirstPage` | 인기 키워드 1페이지 결과 | 1,000 | 30초 | TTL 자동 (색인 갱신 지연 허용) |
 
@@ -722,10 +800,12 @@ templates/
 
 | 화면 | URL | 담당 Controller | HTMX 포인트 |
 |---|---|---|---|
-| 검색 메인 | `GET /` | SearchUsrController | 검색창 + 인기검색어 |
-| 검색 결과 | `GET /result?q=&type=&page=` | SearchUsrController | 도메인 탭(전체/콘텐츠/파일/게시판/메뉴), `hx-get` 부분 교체, 무한스크롤(`hx-trigger="revealed"`) |
+| 검색 메인 | `GET /` | SearchUsrController | 검색창 + 인기검색어 + **추천 검색어**(관리자 등록, display_order 순) |
+| 검색 결과 | `GET /result?q=&type=&category=&sort=&period=&page=` | SearchUsrController | 도메인 탭(전체/콘텐츠/파일/게시판/메뉴) + 탭별 **카테고리 필터** + **정렬 토글**(정확도/최신순) + **기간 필터**(실시간 6h/1일/이번주/이번달/전체), `hx-get` 부분 교체, 무한스크롤(`hx-trigger="revealed"`) |
 | 자동완성 | `GET /api/autocomplete?q=` | AutocompleteApiController | `hx-trigger="keyup changed delay:300ms"` → 드롭다운 fragment |
 | 인기 검색어 | `GET /api/keyword/popular` | KeywordApiController | 메인 로드 시 1회 |
+| 추천 검색어 | `GET /api/keyword/recommend` | KeywordApiController | 메인·결과 상단 노출, 클릭 시 검색 |
+| 내 검색어 | `GET /api/keyword/my` | KeywordApiController | 검색창 포커스 시 드롭다운 (session_id 우선, IP 폴백) |
 | 사전 관리 | `GET /adm/dic/{word\|synonym\|banned}` | DicAdmController | 목록/추가/수정/삭제 전부 fragment 교체 (인라인 편집) |
 | 색인 관리 | `GET /adm/index` · `POST /adm/index/sync` · `POST /adm/index/rebuild` | IndexAdmController | 진행률 폴링 (`hx-trigger="every 1s"`) |
 | 검색 통계 | `GET /adm/stats` | StatsAdmController | 기간별 검색량, 인기검색어, 무결과 검색어 |
@@ -745,9 +825,11 @@ templates/
 
 | Method | URL | Controller | 설명 |
 |---|---|---|---|
-| GET | `/` , `/result?q=&type=&page=&size=` | SearchUsrController | 검색 화면·결과 (HTML fragment 응답) |
+| GET | `/` , `/result?q=&type=&category=&sort=&period=&page=&size=` | SearchUsrController | 검색 화면·결과 (HTML fragment 응답) |
 | GET | `/api/autocomplete?q=` | AutocompleteApiController | 자동완성 (pg_trgm 유사도) |
 | GET | `/api/keyword/popular` | KeywordApiController | 인기 검색어 TOP 10 |
+| GET | `/api/keyword/recommend` | KeywordApiController | 추천 검색어 (관리자 등록, 노출기간·순서 적용) |
+| GET | `/api/keyword/my` | KeywordApiController | 내 검색어 (요청자 session/IP 기준, 파라미터 없음) |
 | GET/POST/PUT/DELETE | `/adm/dic/word` 등 | DicAdmController | 사전 3종 CRUD |
 | POST | `/adm/dic/reload` | DicAdmController | 분석기 사전 리로드 + 관련 캐시 evict |
 | POST | `/adm/index/sync` | IndexAdmController | 즉시 동기화 (해시 diff) |
@@ -789,3 +871,6 @@ templates/
 11. **색인 PK는 (doc_type, doc_id) 복합키** — 도메인별 id 충돌 없이 통합 색인. 검색 결과의 이동 경로는 색인에 저장된 `link_url` 사용.
 12. **관리자 화면·권한은 추후 개발** — v1.0은 사용자 검색 기능에 집중. 사전 관리는 당분간 SQL 직접 실행, 색인은 스케줄 자동 동기화로 운영. URL·컨트롤러 설계만 확정해 둠.
 13. **품사는 keep-list 기본 정책** — NNG·NNP·SL·SN만 색인·검색 (`search.analyzer.keep-pos`로 외부화). 색인·검색이 동일 Analyzer를 공유해 토큰 불일치를 원천 차단. keep-pos 변경 시 전체 재색인 필수.
+14. **추천 검색어는 관리자 등록 테이블로 분리** — 로그 기반 인기 검색어와 별개로 `tn_search_recommend_keyword`에서 노출기간(start/end_date)·순서(display_order)로 통제. 어드민 개발 전까지 SQL로 관리.
+15. **정렬·기간은 `source_updated_at` 기준** — 최신순 정렬과 기간 필터(실시간 6h/1일/이번주/이번달)는 색인에 저장한 원본 수정일로 판정. 전용 인덱스(idx_search_updated)로 최신순 쿼리를 분리 구현.
+16. **내 검색어는 요청자 식별을 서버가 수행** — session_id(쿠키) 우선 + client_ip 폴백. IP를 파라미터로 받는 API는 두지 않아 타인 검색어 조회를 차단.

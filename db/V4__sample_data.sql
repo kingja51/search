@@ -97,7 +97,23 @@ INSERT INTO tn_search_dic_synonym (group_id, word, is_representative, enabled) V
 (4, '공지사항',   false, true);
 
 -- ─────────────────────────────────────────────
--- 7) 금지어사전 (tn_search_dic_banned) 10건
+-- 7) 추천 검색어 (tn_search_recommend_keyword) 10건
+--    관리자 등록: 상시 7건 + 기간 한정 2건 + 비활성 1건
+-- ─────────────────────────────────────────────
+INSERT INTO tn_search_recommend_keyword (keyword, display_order, start_date, end_date, enabled, memo) VALUES
+('검색엔진',     1, NULL,         NULL,         true,  '서비스 핵심 키워드'),
+('형태소분석',   2, NULL,         NULL,         true,  '기술 소개 유도'),
+('동의어사전',   3, NULL,         NULL,         true,  '기능 소개 유도'),
+('자동완성',     4, NULL,         NULL,         true,  '기능 소개 유도'),
+('공지사항',     5, NULL,         NULL,         true,  '게시판 유도'),
+('자주묻는질문', 6, NULL,         NULL,         true,  'FAQ 유도'),
+('이용가이드',   7, NULL,         NULL,         true,  '가이드 문서 유도'),
+('채용',         8, '2026-07-01', '2026-09-30', true,  '기간 한정: 채용 시즌'),
+('정기점검',     9, '2026-07-25', '2026-08-05', true,  '기간 한정: 점검 공지'),
+('구버전서비스', 99, NULL,        NULL,         false, '비활성 예시 (종료 서비스)');
+
+-- ─────────────────────────────────────────────
+-- 8) 금지어사전 (tn_search_dic_banned) 10건
 --    ※ 개발용 예시. 실제 운영 금지어는 정책에 따라 등록
 -- ─────────────────────────────────────────────
 INSERT INTO tn_search_dic_banned (word, block_type, enabled, memo) VALUES
