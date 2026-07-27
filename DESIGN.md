@@ -55,7 +55,7 @@ Elasticsearch 같은 별도 검색 서버 없이 **PostgreSQL 18의 Full-Text Se
 | 데이터 액세스 | **MyBatis 3** (mybatis-spring-boot-starter) | XML 매퍼 방식. **JPA 미사용** |
 | Build | Maven | |
 | DB | PostgreSQL 18 | FTS(tsvector/tsquery), GIN, pg_trgm |
-| 형태소 분석 | `org.apache.lucene:lucene-analysis-nori` (9.x) | 앱 내장 라이브러리로 사용 |
+| 형태소 분석 | `org.apache.lucene:lucene-analysis-nori` (10.4.0) | 앱 내장 라이브러리로 사용 (compile 스코프 — API 직접 사용) |
 | View | Thymeleaf + Layout Dialect + HTMX | 레이아웃: `templates/layout/search/` |
 | 캐시 | Caffeine (Spring Cache) | 사전·인기/추천검색어·자동완성 캐시, 통계 노출 |
 | 관측성 | Actuator + Micrometer(Prometheus) + Tracing(Brave) | 메트릭 수집, 로그 traceId/spanId 연동 |
@@ -68,7 +68,7 @@ Elasticsearch 같은 별도 검색 서버 없이 **PostgreSQL 18의 Full-Text Se
 <dependency>
     <groupId>org.apache.lucene</groupId>
     <artifactId>lucene-analysis-nori</artifactId>
-    <version>9.11.1</version>
+    <version>10.4.0</version>
 </dependency>
 <dependency>
     <groupId>org.mybatis.spring.boot</groupId>

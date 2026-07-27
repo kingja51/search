@@ -19,7 +19,7 @@
 
     <properties>
         <java.version>21</java.version>
-        <lucene.version>9.11.1</lucene.version>
+        <lucene.version>10.4.0</lucene.version>
     </properties>
 
     <dependencies>
