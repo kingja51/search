@@ -40,6 +40,25 @@ Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreS
 
 앱 없이 DB만 구성하려면: [db/search_full_setup.sql](db/search_full_setup.sql)
 (스키마 + 테이블/VIEW + 샘플 INSERT 통합 정리본 — Flyway로 관리할 DB에는 실행 금지)
+앱 계정 권한만 부여하려면: [db/grant_search_user.sql](db/grant_search_user.sql)
+
+## 모니터링
+
+- **내장 대시보드**: `http://localhost:8080/search/monitor` — Chart.js(webjar 내장, **외부 연결 불필요**)
+  5초 폴링. 검색 처리량·평균 응답시간(단계별 span 토글)·캐시 히트율·색인 문서 수 + 배치 현황
+  (Grafana/Prometheus는 외부 연결 제한 환경을 고려해 미사용 — Actuator `/actuator/prometheus`는 열려 있어 추후 연동 가능)
+- Actuator(관리 포트 9090): `http://localhost:9090/actuator/health` · `/actuator/prometheus` · `/actuator/caches`
+- 검색 1건의 단계별 소요는 span 메트릭으로 확인: `search_analyze/expand/fts/highlight_seconds`
+- 인덱스 검증·튜닝 노트: [docs/db-tuning.md](docs/db-tuning.md)
+
+## 운영 팁
+
+| 작업 | 방법 |
+|---|---|
+| 사전(단어/동의어/금지어/추천어) 변경 | SQL로 수정 → 앱 재시작(기동 시 사전 로드·캐시 재구성). 무재기동 리로드는 어드민(추후)에서 `DictionaryService.reloadDictionaries()` 연결 예정 |
+| 색인 갱신 | 자동: 매일 06:00/18:00 해시 diff + 기동 시 1회. 품사/단어사전 변경 후엔 전체 재색인(`IndexingService.rebuildAll`, 어드민 추후) |
+| 인기 검색어 | 로그 → MV 10분 자동 갱신 → 캐시 1분. 수동 갱신: `REFRESH MATERIALIZED VIEW CONCURRENTLY search.vw_search_popular_keyword;` |
+| 검색 품질 점검 | `log_search_keyword`에서 `result_count = 0` 키워드 조회 → 단어/동의어 사전 보강 |
 
 ## 상태
 
@@ -50,5 +69,5 @@ Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreS
 - [x] 4단계: UI (위젯·자동완성·상세검색 패널·무한스크롤, Tailwind v4)
 - [x] 5단계: 캐시·관측성 (Caffeine 5종 + 커스텀 메트릭 + 단계별 span)
 - [x] **전체 실동작 검증** — PostgreSQL 18 (postgres DB / search 스키마 / search_user), 검색·동의어 하이라이트·금지어·자동완성·인기/추천 검색어·메트릭 확인 (2026-07)
-- [ ] 6단계: 마무리 (v1.0)
+- [x] 6단계: 마무리 — 인덱스 EXPLAIN 검증, 내장 Chart.js 모니터 대시보드(/monitor), 운영 문서 (**v1.0**)
 - [ ] (추후) 어드민·권한

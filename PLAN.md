@@ -82,9 +82,14 @@
 | trace 전파 | ✅ | ContextPropagatingTaskDecorator 빈 — @Async 로그 스레드로 traceId 전파 |
 | 실동작 검증 | ⏸ | **PostgreSQL 준비 후** — :9090/actuator/prometheus에서 캐시 히트율·search.query 확인 |
 
-## 6단계: 마무리 ⏸
+## 6단계: 마무리 ✅ (v1.0)
 
-- 인덱스 튜닝(EXPLAIN 확인), Grafana 대시보드 4패널, README 실행 문서 보강, v1.0 태그
+| 작업 | 상태 | 산출물 |
+|---|---|---|
+| 인덱스 EXPLAIN 검증 | ✅ | 핵심 쿼리 5종 모두 의도한 인덱스 사용 확인 — [docs/db-tuning.md](docs/db-tuning.md) (운영 점검 포인트 포함: ANALYZE, GIN vacuum, 로그 파티셔닝 과제) |
+| 모니터 대시보드 | ✅ | **내장 Chart.js 대시보드** `/monitor` (webjar 내장 — 외부 연결 불필요, Grafana 미사용 결정). /api/monitor/summary 5초 폴링, QPS·응답시간(span 토글)·캐시 히트율·색인 문서 수·배치 현황. 검증: 페이지 200, 메트릭 증가, 캐시 hit/miss 반영 확인 |
+| README 보강 | ✅ | 모니터링·운영 팁 섹션 (사전 변경 반영, 재색인, MV 수동 갱신, 무결과 검색어 점검) |
+| v1.0 태그 | ✅ | git tag v1.0 |
 
 ## 📌 추후 (v1.0 이후)
 

@@ -35,7 +35,7 @@ logging:
 
 management:
   server:
-    port: 9090                   # 관리 포트 분리 (context path 영향 없음)
+    port: ${MANAGEMENT_PORT:9090}   # 관리 포트 분리 (context path 영향 없음)
   endpoints:
     web:
       exposure:
@@ -46,6 +46,10 @@ management:
   tracing:
     sampling:
       probability: 1.0           # 개발: 100%, 운영: 0.1 권장
+  metrics:
+    distribution:
+      percentiles-histogram:
+        search.query: true       # Grafana p95/p99 (histogram_quantile) 계산용 버킷 노출
 
 search:
   index:

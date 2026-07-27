@@ -1049,8 +1049,10 @@ management:
 | `cache.gets` 등 | (자동) | `cache`, `result` | Caffeine 히트율 |
 | `hikaricp.*`, `jvm.*`, `http.server.requests` | (자동) | | DB 커넥션풀, JVM, HTTP 전반 |
 
-- 수집: Prometheus가 `:9090/actuator/prometheus`를 15s 간격 스크레이프 → Grafana 대시보드
-  (검색 QPS, p95 지연, 캐시 히트율, 무결과율 4개 패널이면 1인 운영에 충분)
+- 시각화: **내장 Chart.js 대시보드 `/monitor`** — 외부 연결 제한 환경을 고려해 Grafana 미사용.
+  Chart.js는 webjar로 앱에 내장, `/api/monitor/summary`(MeterRegistry 스냅샷 JSON)를 5초 폴링해
+  검색 처리량·구간 평균 응답시간(단계별 span)·캐시 히트율·색인 문서 수·배치 현황을 렌더링
+- (선택) 외부 연동이 가능한 환경이면 `:9090/actuator/prometheus` 스크레이프로 Prometheus/Grafana 연계 가능
 
 ---
 
