@@ -24,10 +24,12 @@ public class KeywordApiController {
     private final KeywordLogService keywordLogService;
     private final RecommendKeywordService recommendKeywordService;
 
-    /** 인기 검색어 TOP 10 (MV 10분 자동 갱신분) */
+    /** 인기 검색어 TOP 10 — 기간 탭(전체/실시간/1일/이번주/이번달)별 실시간 집계 */
     @GetMapping("/popular")
-    public String popular(Model model) {
-        model.addAttribute("popular", keywordLogService.popularKeywords(LIMIT));
+    public String popular(@org.springframework.web.bind.annotation.RequestParam(value = "period", defaultValue = "all") String period,
+                          Model model) {
+        model.addAttribute("popular", keywordLogService.popularKeywords(period, LIMIT));
+        model.addAttribute("period", period);
         return "usr/keywords :: popular";
     }
 

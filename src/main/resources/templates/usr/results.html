@@ -56,15 +56,29 @@
                 <input type="hidden" name="sort" th:value="${cond.sort}">
                 <input type="hidden" name="category" th:value="${cond.category}">
                 <input type="hidden" th:each="prev : ${cond.qPrev}" name="qPrev" th:value="${prev}">
+                <!-- 기간 프리셋: 클릭 시 시작일~종료일 자동 세팅 -->
+                <div class="w-full flex flex-wrap items-center gap-1.5">
+                    <span class="text-xs text-gray-400 mr-1">기간</span>
+                    <button type="button" onclick="setPeriodPreset('all')"
+                            class="px-3 py-1 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50">전체</button>
+                    <button type="button" onclick="setPeriodPreset('6h')"
+                            class="px-3 py-1 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50">실시간</button>
+                    <button type="button" onclick="setPeriodPreset('1d')"
+                            class="px-3 py-1 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50">1일</button>
+                    <button type="button" onclick="setPeriodPreset('week')"
+                            class="px-3 py-1 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50">이번주</button>
+                    <button type="button" onclick="setPeriodPreset('month')"
+                            class="px-3 py-1 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50">이번달</button>
+                </div>
                 <label class="flex flex-col gap-1">
                     <span class="text-xs text-gray-400">시작일</span>
-                    <input type="date" name="dateFrom" th:value="${cond.dateFrom}"
+                    <input type="date" id="dateFrom" name="dateFrom" th:value="${cond.dateFrom}"
                            class="border border-gray-200 rounded-lg px-2 py-1.5">
                 </label>
                 <span class="pb-2 text-gray-400">~</span>
                 <label class="flex flex-col gap-1">
                     <span class="text-xs text-gray-400">종료일</span>
-                    <input type="date" name="dateTo" th:value="${cond.dateTo}"
+                    <input type="date" id="dateTo" name="dateTo" th:value="${cond.dateTo}"
                            class="border border-gray-200 rounded-lg px-2 py-1.5">
                 </label>
                 <div class="flex items-center gap-3 pb-1.5">
@@ -208,7 +222,7 @@
                           th:text="${res.q}">현재검색어</span>
                 </div>
 
-                <!-- 정렬 + 기간 툴바 -->
+                <!-- 정렬 툴바 (기간은 상세검색 패널의 프리셋 버튼으로 이동) -->
                 <div class="flex flex-wrap items-center gap-2 mb-3 text-[13px]">
                     <th:block th:each="s : ${ {'accuracy', 'latest'} }">
                         <a th:href="@{/result(q=${res.q}, type=${cond.type}, category=${cond.category}, sort=${s}, period=${cond.period}, op=${cond.op}, dateFrom=${cond.dateFrom}, dateTo=${cond.dateTo}, qPrev=${cond.qPrev})}"
@@ -216,13 +230,9 @@
                            th:classappend="${cond.sort == s} ? 'border-primary text-primary font-semibold' : 'border-gray-200 text-gray-500 hover:bg-gray-50'"
                            th:text="${s == 'accuracy' ? '정확도' : '최신순'}">정렬</a>
                     </th:block>
-                    <span class="text-gray-200">|</span>
-                    <th:block th:each="p : ${ {'all', '6h', '1d', 'week', 'month'} }">
-                        <a th:href="@{/result(q=${res.q}, type=${cond.type}, category=${cond.category}, sort=${cond.sort}, period=${p}, op=${cond.op}, qPrev=${cond.qPrev})}"
-                           class="px-3 py-1 rounded-full border"
-                           th:classappend="${cond.period == p and cond.dateFrom == null} ? 'border-primary text-primary font-semibold' : 'border-gray-200 text-gray-500 hover:bg-gray-50'"
-                           th:text="${p == 'all' ? '전체' : (p == '6h' ? '실시간' : (p == '1d' ? '1일' : (p == 'week' ? '이번주' : '이번달')))}">기간</a>
-                    </th:block>
+                    <span th:if="${cond.dateFrom != null or cond.dateTo != null}"
+                          class="px-3 py-1 rounded-full bg-primary/10 text-primary text-[12px]"
+                          th:text="'기간: ' + ${cond.dateFrom != null ? cond.dateFrom : ''} + ' ~ ' + ${cond.dateTo != null ? cond.dateTo : ''}">기간</span>
                 </div>
 
                 <!-- 개별 탭: 카테고리 필터 -->
@@ -263,12 +273,45 @@
             </th:block>
         </section>
 
-        <!-- 오른쪽: 인기 검색어 -->
+        <!-- 오른쪽: 인기 검색어 (기간 탭: 전체/실시간/1일/이번주/이번달) -->
         <aside class="md:w-52 shrink-0">
-            <div class="border border-gray-200 rounded-xl p-4"
+            <div id="popular-box" class="border border-gray-200 rounded-xl p-4"
                  th:attr="hx-get=@{/api/keyword/popular}" hx-trigger="load" hx-swap="innerHTML"></div>
         </aside>
     </div>
+
+    <script>
+        // 상세검색 기간 프리셋: 버튼 클릭 시 시작일~종료일 자동 세팅
+        function setPeriodPreset(preset) {
+            const from = document.getElementById('dateFrom');
+            const to = document.getElementById('dateTo');
+            const fmt = d => {
+                const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000);   // 로컬 타임존 기준 yyyy-MM-dd
+                return z.toISOString().slice(0, 10);
+            };
+            const today = new Date();
+            switch (preset) {
+                case 'all':                                     // 전체: 기간 해제
+                    from.value = ''; to.value = ''; return;
+                case '6h':                                      // 실시간: 오늘
+                    from.value = fmt(today); break;
+                case '1d': {                                    // 1일: 어제 ~ 오늘
+                    const y = new Date(today); y.setDate(y.getDate() - 1);
+                    from.value = fmt(y); break;
+                }
+                case 'week': {                                  // 이번주: 월요일 ~ 오늘
+                    const m = new Date(today);
+                    m.setDate(m.getDate() - ((m.getDay() + 6) % 7));
+                    from.value = fmt(m); break;
+                }
+                case 'month': {                                 // 이번달: 1일 ~ 오늘
+                    const f = new Date(today.getFullYear(), today.getMonth(), 1);
+                    from.value = fmt(f); break;
+                }
+            }
+            to.value = fmt(today);
+        }
+    </script>
 </main>
 
 <!-- 결과 1건 fragment: 제목·내용(발췌)·등록일·링크(원본) + <mark> 하이라이트 (escape는 HighlightService에서 완료) -->

@@ -41,10 +41,30 @@ public class KeywordLogService {
         }
     }
 
-    /** 인기 검색어 TOP N — popularKeywords 캐시(TTL 1분) */
-    @Cacheable(cacheNames = "popularKeywords", key = "#limit")
+    /** 인기 검색어 TOP N (전체 기간) — popularKeywords 캐시(TTL 1분) */
     public List<KeywordStat> popularKeywords(int limit) {
-        return logMapper.findPopular(limit);
+        return popularKeywords("all", limit);
+    }
+
+    /**
+     * 기간별 인기 검색어 TOP N — 로그 실시간 집계, popularKeywords 캐시(기간별 키, TTL 1분).
+     * period: all(전체) / 6h(실시간) / 1d(1일) / week(이번주) / month(이번달)
+     */
+    @Cacheable(cacheNames = "popularKeywords", key = "#period + ':' + #limit")
+    public List<KeywordStat> popularKeywords(String period, int limit) {
+        return logMapper.findPopularSince(periodFrom(period), limit);
+    }
+
+    private java.time.OffsetDateTime periodFrom(String period) {
+        java.time.ZoneId zone = java.time.ZoneId.systemDefault();
+        java.time.LocalDate today = java.time.LocalDate.now(zone);
+        return switch (period == null ? "all" : period) {
+            case "6h" -> java.time.OffsetDateTime.now(zone).minusHours(6);
+            case "1d" -> java.time.OffsetDateTime.now(zone).minusHours(24);
+            case "week" -> today.with(java.time.DayOfWeek.MONDAY).atStartOfDay(zone).toOffsetDateTime();
+            case "month" -> today.withDayOfMonth(1).atStartOfDay(zone).toOffsetDateTime();
+            default -> null;                     // 전체 기간
+        };
     }
 
     /** 내 검색어 — session_id 우선, 없으면 IP 폴백 (IP 파라미터 API 금지: 서버가 추출한 값만 사용) */
