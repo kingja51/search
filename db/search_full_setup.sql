@@ -6,13 +6,46 @@
 --    이 파일은 "앱 없이 DB만 구성"하거나 전체 스키마를 한눈에 검토할 때 쓰는 정리본이며,
 --    Flyway로 관리할 DB에는 직접 실행하지 말 것 (flyway_schema_history 없이 테이블이 생겨 충돌).
 --
--- 실행 예:
---   "C:\Program Files\PostgreSQL\18\bin\psql" -U postgres -c "CREATE DATABASE search;"
---   "C:\Program Files\PostgreSQL\18\bin\psql" -U postgres -d search -f db/search_full_setup.sql
+-- 실행 예 (postgres 관리자 계정으로, 대상 DB에 접속해 실행):
+--   "C:\Program Files\PostgreSQL\18\bin\psql" -U postgres -d postgres -f db/search_full_setup.sql
 -- ============================================================
 
+-- ─────────────────────────────────────────────
+-- 0) 애플리케이션 계정 (이미 있으면 이 두 구문은 건너뛰기)
+-- ─────────────────────────────────────────────
+CREATE USER search_user
+WITH LOGIN PASSWORD 'search_pw!@';
+
+GRANT ALL PRIVILEGES
+ON DATABASE postgres              -- 접속 대상 DB (다른 DB를 쓰면 이름 변경)
+TO search_user;
+
+-- ─────────────────────────────────────────────
+-- 1) 확장 설치
+--    ※ WITH SCHEMA extensions 를 쓰려면 그 스키마가 먼저 존재해야 한다
+--      (없으면 SQL Error 3F000: "extensions" 스키마 없음)
+--    ※ 이미 다른 스키마(public 등)에 설치된 확장은 IF NOT EXISTS 로 건너뛴다.
+--      이동이 필요하면: ALTER EXTENSION pg_trgm SET SCHEMA extensions;
+-- ─────────────────────────────────────────────
+CREATE SCHEMA IF NOT EXISTS extensions;
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto      WITH SCHEMA extensions;  -- 암호화, 해시, 랜덤 바이트, UUID
+CREATE EXTENSION IF NOT EXISTS pg_trgm       WITH SCHEMA extensions;  -- 유사 문자열·자동완성 (★ 검색엔진 필수)
+CREATE EXTENSION IF NOT EXISTS citext        WITH SCHEMA extensions;  -- 대소문자 무시 문자열 타입
+CREATE EXTENSION IF NOT EXISTS unaccent      WITH SCHEMA extensions;  -- 악센트 제거 전처리
+CREATE EXTENSION IF NOT EXISTS btree_gin     WITH SCHEMA extensions;  -- GIN 복합 인덱스 일반 자료형
+CREATE EXTENSION IF NOT EXISTS btree_gist    WITH SCHEMA extensions;  -- GiST 복합 인덱스 일반 자료형
+CREATE EXTENSION IF NOT EXISTS fuzzystrmatch WITH SCHEMA extensions;  -- Soundex/Levenshtein 등
+
+-- ─────────────────────────────────────────────
+-- 2) search 스키마 + 검색 경로
+--    extensions 를 경로에 포함해야 gin_trgm_ops·similarity() 참조 가능
+-- ─────────────────────────────────────────────
 CREATE SCHEMA IF NOT EXISTS search;
-SET search_path TO search, public;
+SET search_path TO search, extensions, public;
+
+GRANT USAGE, CREATE ON SCHEMA search TO search_user;   -- CREATE: Flyway V5+ 마이그레이션용
+GRANT USAGE ON SCHEMA extensions TO search_user;
 
 
 -- ════════════════════════════════════════════════════════════
@@ -457,3 +490,13 @@ INSERT INTO tn_search_dic_banned (word, block_type, enabled, memo, created_ip, c
 ('임직원명단',    'MASK',  true,  '검색은 허용, 결과 노출 제한', '127.0.0.1', 'admin'),
 ('구금지어',      'BLOCK', false, '비활성 예시 (해제된 금지어)', '127.0.0.1', 'admin');
 
+
+-- ════════════════════════════════════════════════════════════
+-- 마무리: 애플리케이션 계정(search_user) 권한 부여
+-- ════════════════════════════════════════════════════════════
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA search TO search_user;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA search TO search_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA search GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO search_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA search GRANT USAGE, SELECT ON SEQUENCES TO search_user;
+-- 인기 검색어 MV 자동 갱신(REFRESH MATERIALIZED VIEW) 권한 (PostgreSQL 17+)
+GRANT MAINTAIN ON search.vw_search_popular_keyword TO search_user;

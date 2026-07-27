@@ -10,11 +10,14 @@ spring:
   profiles:
     active: local                # 추가 오버라이드는 application-local.yml (git 미추적, 없어도 무방)
   datasource:                    # 접속 정보는 환경 변수(.env.example 참조) 또는 local 프로파일로 주입
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/search?currentSchema=search,public}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/postgres?currentSchema=search,extensions,public}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
   flyway:
     default-schema: ${DB_SCHEMA:search}   # search 스키마에 모든 객체 생성 (스키마 없으면 자동 생성)
+    baseline-on-migrate: true    # 수동 설치(정리본 SQL)된 기존 스키마를 기준선으로 인정하고 기동
+    baseline-version: "4"        # V1~V4는 이미 반영된 것으로 간주 — V5부터 새 마이그레이션 적용
+                                 # (빈 스키마에서 시작하면 baseline 없이 V1~V4를 정상 적용한다)
   task:
     scheduling:
       pool:
