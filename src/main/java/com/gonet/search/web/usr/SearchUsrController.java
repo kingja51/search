@@ -30,4 +30,14 @@ public class SearchUsrController {
         model.addAttribute("res", res);
         return "usr/results";
     }
+
+    /** 무한스크롤 다음 페이지 — 결과 아이템 fragment만 반환 (hx-trigger="revealed") */
+    @GetMapping("/result/items")
+    public String resultItems(@ModelAttribute("cond") SearchCondition cond,
+                              HttpServletRequest request,
+                              Model model) {
+        SearchResponse res = searchService.search(cond, request.getSession().getId());
+        model.addAttribute("res", res);
+        return "usr/results :: itemsPage";
+    }
 }

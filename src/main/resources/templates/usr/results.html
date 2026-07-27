@@ -7,48 +7,152 @@
 </head>
 <body>
 <main layout:fragment="content">
-    <!-- 검색창 -->
-    <form th:action="@{/result}" method="get" class="flex gap-2 max-w-xl my-6">
-        <input type="text" name="q" th:value="${res.q}" required autocomplete="off"
-               class="flex-1 px-4 py-2.5 text-[15px] border-2 border-primary rounded-full outline-none focus:ring-2 focus:ring-primary/30">
-        <button type="submit"
-                class="px-5 py-2.5 rounded-full bg-primary text-white cursor-pointer hover:bg-primary/90">검색</button>
-    </form>
+    <!-- 검색창 + 자동완성 -->
+    <div class="relative max-w-xl my-6">
+        <form th:action="@{/result}" method="get" class="flex gap-2">
+            <input type="text" name="q" th:value="${res.q}" required autocomplete="off"
+                   th:attr="hx-get=@{/api/autocomplete}"
+                   hx-trigger="focus, keyup changed delay:300ms"
+                   hx-target="#ac-box" hx-swap="innerHTML"
+                   class="flex-1 px-4 py-2.5 text-[15px] border-2 border-primary rounded-full outline-none focus:ring-2 focus:ring-primary/30">
+            <button type="submit"
+                    class="px-5 py-2.5 rounded-full bg-primary text-white cursor-pointer hover:bg-primary/90">검색</button>
+        </form>
+        <div id="ac-box" class="ac-box absolute left-0 right-16 top-full mt-1 z-10"></div>
+    </div>
 
     <!-- 금지어 차단 -->
     <div th:if="${res.blocked}" class="py-8 text-red-600" th:text="${res.message}"></div>
 
     <th:block th:unless="${res.blocked}">
+
+        <!-- 적용된 검색어 칩: qPrev(제거 가능) + 현재 q -->
+        <div th:if="${!#lists.isEmpty(cond.qPrev)}" class="flex flex-wrap items-center gap-2 mb-3 text-[13px]">
+            <span class="text-gray-400 text-xs">결과 내 재검색:</span>
+            <span th:each="chip : ${cond.qPrev}"
+                  class="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 rounded-full">
+                <span th:text="${chip}">이전검색어</span>
+                <a th:href="@{/result(q=${res.q}, type=${cond.type}, category=${cond.category}, sort=${cond.sort}, period=${cond.period}, op=${cond.op}, dateFrom=${cond.dateFrom}, dateTo=${cond.dateTo}, qPrev=${cond.qPrev.?[#this != chip]})}"
+                   class="text-gray-400 hover:text-red-500 font-bold" title="이 조건 제거">×</a>
+            </span>
+            <span class="inline-flex items-center px-2.5 py-1 bg-primary/10 text-primary rounded-full font-semibold"
+                  th:text="${res.q}">현재검색어</span>
+        </div>
+
         <!-- 탭별 건수 -->
-        <nav class="flex gap-4 border-b border-gray-200 pb-2.5 mb-4 text-sm">
+        <nav class="flex gap-4 border-b border-gray-200 pb-2.5 mb-3 text-sm overflow-x-auto">
             <a th:each="tab : ${res.tabCounts}"
-               th:href="@{/result(q=${res.q}, type=${tab.key == 'ALL' ? null : tab.key}, sort=${cond.sort}, period=${cond.period}, op=${cond.op})}"
-               th:class="${(cond.isAllTab() and tab.key == 'ALL') or (cond.type == tab.key)} ? 'font-bold text-primary' : 'text-gray-500 hover:text-gray-700'">
+               th:href="@{/result(q=${res.q}, type=${tab.key == 'ALL' ? null : tab.key}, sort=${cond.sort}, period=${cond.period}, op=${cond.op}, dateFrom=${cond.dateFrom}, dateTo=${cond.dateTo}, qPrev=${cond.qPrev})}"
+               class="whitespace-nowrap"
+               th:classappend="${(cond.isAllTab() and tab.key == 'ALL') or (cond.type == tab.key)} ? 'font-bold text-primary' : 'text-gray-500 hover:text-gray-700'">
                 <span th:text="${tab.key == 'ALL' ? '전체' : tab.key}">탭</span>
                 <span th:text="'(' + ${tab.value} + ')'">(0)</span>
             </a>
         </nav>
 
+        <!-- 필터 툴바: 정렬 + 기간 + 상세검색 토글 -->
+        <div class="flex flex-wrap items-center gap-2 mb-3 text-[13px]">
+            <!-- 정렬 -->
+            <th:block th:each="s : ${ {'accuracy', 'latest'} }">
+                <a th:href="@{/result(q=${res.q}, type=${cond.type}, category=${cond.category}, sort=${s}, period=${cond.period}, op=${cond.op}, dateFrom=${cond.dateFrom}, dateTo=${cond.dateTo}, qPrev=${cond.qPrev})}"
+                   class="px-3 py-1 rounded-full border"
+                   th:classappend="${cond.sort == s} ? 'border-primary text-primary font-semibold' : 'border-gray-200 text-gray-500 hover:bg-gray-50'"
+                   th:text="${s == 'accuracy' ? '정확도' : '최신순'}">정렬</a>
+            </th:block>
+            <span class="text-gray-200">|</span>
+            <!-- 기간 (dateFrom 지정 시 무시됨) -->
+            <th:block th:each="p : ${ {'all', '6h', '1d', 'week', 'month'} }">
+                <a th:href="@{/result(q=${res.q}, type=${cond.type}, category=${cond.category}, sort=${cond.sort}, period=${p}, op=${cond.op}, qPrev=${cond.qPrev})}"
+                   class="px-3 py-1 rounded-full border"
+                   th:classappend="${cond.period == p and cond.dateFrom == null} ? 'border-primary text-primary font-semibold' : 'border-gray-200 text-gray-500 hover:bg-gray-50'"
+                   th:text="${p == 'all' ? '전체' : (p == '6h' ? '실시간' : (p == '1d' ? '1일' : (p == 'week' ? '이번주' : '이번달')))}">기간</a>
+            </th:block>
+        </div>
+
+        <!-- 상세검색 패널 -->
+        <details class="mb-4 border border-gray-200 rounded-xl" th:open="${cond.dateFrom != null or cond.dateTo != null}">
+            <summary class="cursor-pointer px-4 py-2.5 text-sm font-semibold text-gray-600 select-none">상세검색</summary>
+            <div class="px-4 pb-4 pt-1 space-y-4 border-t border-gray-100">
+                <!-- (A) 조건 적용: 기간 직접 지정 + AND/OR -->
+                <form th:action="@{/result}" method="get" class="flex flex-wrap items-end gap-3 text-[13px]">
+                    <input type="hidden" name="q" th:value="${res.q}">
+                    <input type="hidden" name="type" th:value="${cond.type}">
+                    <input type="hidden" name="sort" th:value="${cond.sort}">
+                    <input type="hidden" name="category" th:value="${cond.category}">
+                    <input type="hidden" th:each="prev : ${cond.qPrev}" name="qPrev" th:value="${prev}">
+                    <label class="flex flex-col gap-1">
+                        <span class="text-xs text-gray-400">시작일</span>
+                        <input type="date" name="dateFrom" th:value="${cond.dateFrom}"
+                               class="border border-gray-200 rounded-lg px-2 py-1.5">
+                    </label>
+                    <span class="pb-2 text-gray-400">~</span>
+                    <label class="flex flex-col gap-1">
+                        <span class="text-xs text-gray-400">종료일</span>
+                        <input type="date" name="dateTo" th:value="${cond.dateTo}"
+                               class="border border-gray-200 rounded-lg px-2 py-1.5">
+                    </label>
+                    <div class="flex items-center gap-3 pb-1.5">
+                        <label class="flex items-center gap-1">
+                            <input type="radio" name="op" value="AND" th:checked="${cond.op != 'OR'}"> AND
+                        </label>
+                        <label class="flex items-center gap-1">
+                            <input type="radio" name="op" value="OR" th:checked="${cond.op == 'OR'}"> OR
+                        </label>
+                    </div>
+                    <button type="submit"
+                            class="px-4 py-1.5 rounded-full bg-primary text-white hover:bg-primary/90">조건 적용</button>
+                </form>
+
+                <!-- (B) 결과 내 재검색: 현재 검색어를 qPrev로 쌓고 새 키워드로 좁힌다 (항상 AND) -->
+                <form th:action="@{/result}" method="get" class="flex flex-wrap items-center gap-2 text-[13px]">
+                    <input type="hidden" name="type" th:value="${cond.type}">
+                    <input type="hidden" name="sort" th:value="${cond.sort}">
+                    <input type="hidden" name="period" th:value="${cond.period}">
+                    <input type="hidden" name="op" th:value="${cond.op}">
+                    <input type="hidden" name="dateFrom" th:value="${cond.dateFrom}">
+                    <input type="hidden" name="dateTo" th:value="${cond.dateTo}">
+                    <input type="hidden" th:each="prev : ${cond.qPrev}" name="qPrev" th:value="${prev}">
+                    <input type="hidden" name="qPrev" th:value="${res.q}">
+                    <span class="text-xs text-gray-400">결과 내 재검색</span>
+                    <input type="text" name="q" required placeholder="현재 결과에서 다시 검색"
+                           class="flex-1 min-w-44 border border-gray-200 rounded-full px-3.5 py-1.5 outline-none focus:border-primary">
+                    <button type="submit"
+                            class="px-4 py-1.5 rounded-full border border-primary text-primary hover:bg-primary hover:text-white">재검색</button>
+                </form>
+            </div>
+        </details>
+
+        <!-- 개별 탭: 카테고리 필터 -->
+        <div th:if="${!cond.isAllTab() and !#lists.isEmpty(res.categoryCounts)}"
+             class="flex flex-wrap gap-1.5 mb-4 text-[12px]">
+            <a th:href="@{/result(q=${res.q}, type=${cond.type}, sort=${cond.sort}, period=${cond.period}, op=${cond.op}, dateFrom=${cond.dateFrom}, dateTo=${cond.dateTo}, qPrev=${cond.qPrev})}"
+               class="px-2.5 py-1 rounded-full"
+               th:classappend="${cond.category == null or cond.category == ''} ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">전체</a>
+            <a th:each="c : ${res.categoryCounts}"
+               th:href="@{/result(q=${res.q}, type=${cond.type}, category=${c.key}, sort=${cond.sort}, period=${cond.period}, op=${cond.op}, dateFrom=${cond.dateFrom}, dateTo=${cond.dateTo}, qPrev=${cond.qPrev})}"
+               class="px-2.5 py-1 rounded-full"
+               th:classappend="${cond.category == c.key} ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+                <span th:text="${c.key}">카테고리</span> <span th:text="${c.count}">0</span>
+            </a>
+        </div>
+
         <p th:if="${res.message}" class="py-6 text-gray-500" th:text="${res.message}"></p>
 
-        <!-- 전체 탭: 도메인 그룹 뷰 (그룹당 10건 + 더보기) -->
+        <!-- 전체 탭: 도메인 그룹 뷰 (그룹당 10건 + 더보기 → 해당 탭 전환) -->
         <section th:each="group : ${res.groups}" class="mb-7">
             <h2 class="text-base font-semibold mb-2.5"
                 th:text="${group.docType} + ' (' + ${group.total} + ')'">그룹</h2>
             <div th:each="item : ${group.items}" th:insert="~{usr/results :: resultItem(${item})}"></div>
             <a th:if="${group.hasMore}"
-               th:href="@{/result(q=${res.q}, type=${group.docType}, sort=${cond.sort}, period=${cond.period}, op=${cond.op})}"
+               th:href="@{/result(q=${res.q}, type=${group.docType}, sort=${cond.sort}, period=${cond.period}, op=${cond.op}, dateFrom=${cond.dateFrom}, dateTo=${cond.dateTo}, qPrev=${cond.qPrev})}"
                class="inline-block mt-1.5 px-4 py-1.5 border border-gray-200 rounded-full text-[13px] text-gray-500 hover:bg-gray-50">
                 더보기 (<span th:text="${group.total}">0</span>건)
             </a>
         </section>
 
-        <!-- 개별 탭: 페이징 뷰 -->
+        <!-- 개별 탭: 무한스크롤 페이징 뷰 -->
         <section th:if="${!cond.isAllTab()}">
-            <div th:each="item : ${res.items}" th:insert="~{usr/results :: resultItem(${item})}"></div>
-            <a th:if="${res.hasMore}"
-               th:href="@{/result(q=${res.q}, type=${cond.type}, category=${cond.category}, sort=${cond.sort}, period=${cond.period}, op=${cond.op}, page=${cond.page + 1})}"
-               class="inline-block mt-2.5 px-4 py-1.5 border border-gray-200 rounded-full text-[13px] hover:bg-gray-50">다음 페이지</a>
+            <th:block th:insert="~{usr/results :: itemsPage}"></th:block>
         </section>
 
         <p class="mt-6 text-xs text-gray-400"
@@ -65,5 +169,14 @@
         <span th:if="${item.category}" th:text="' · ' + ${item.category}"></span>
     </span>
 </div>
+
+<!-- 무한스크롤 페이지 fragment: 결과 N건 + 다음 페이지 sentinel (hx-trigger="revealed") -->
+<th:block th:fragment="itemsPage">
+    <div th:each="item : ${res.items}" th:insert="~{usr/results :: resultItem(${item})}"></div>
+    <div th:if="${res.hasMore}"
+         th:attr="hx-get=@{/result/items(q=${res.q}, type=${cond.type}, category=${cond.category}, sort=${cond.sort}, period=${cond.period}, op=${cond.op}, dateFrom=${cond.dateFrom}, dateTo=${cond.dateTo}, qPrev=${cond.qPrev}, page=${cond.page + 1}, size=${cond.size})}"
+         hx-trigger="revealed" hx-swap="outerHTML"
+         class="py-4 text-center text-xs text-gray-400">불러오는 중…</div>
+</th:block>
 </body>
 </html>

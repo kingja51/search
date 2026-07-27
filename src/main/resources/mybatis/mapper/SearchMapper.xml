@@ -70,4 +70,16 @@
         ORDER BY count DESC, category
     </select>
 
+    <!-- 자동완성: pg_trgm 유사도(%) + 부분일치, idx_search_trgm(GIN) 활용 -->
+    <select id="autocomplete" resultType="string">
+        SELECT title FROM (
+            SELECT DISTINCT title, similarity(title, #{q}) AS sim
+            FROM tn_search_index
+            WHERE title % #{q}
+               OR title ILIKE '%' || #{q} || '%'
+        ) t
+        ORDER BY sim DESC, title
+        LIMIT #{limit}
+    </select>
+
 </mapper>

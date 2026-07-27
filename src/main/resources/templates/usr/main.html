@@ -10,20 +10,30 @@
     <section class="pt-16 pb-6 text-center">
         <h1 class="text-2xl font-bold mb-6">무엇을 찾고 계신가요?</h1>
 
-        <!-- 검색 폼 -->
-        <form th:action="@{/result}" method="get" class="flex gap-2 max-w-xl mx-auto">
-            <input type="text" name="q" placeholder="검색어를 입력하세요"
-                   autocomplete="off" required
-                   class="flex-1 px-4 py-3 text-[15px] border-2 border-primary rounded-full outline-none focus:ring-2 focus:ring-primary/30">
-            <button type="submit"
-                    class="px-6 py-3 text-[15px] rounded-full bg-primary text-white cursor-pointer hover:bg-primary/90">
-                검색
-            </button>
-        </form>
+        <!-- 검색 폼 + 자동완성/내 검색어 드롭다운 -->
+        <div class="relative max-w-xl mx-auto">
+            <form th:action="@{/result}" method="get" class="flex gap-2">
+                <input type="text" name="q" placeholder="검색어를 입력하세요"
+                       autocomplete="off" required
+                       th:attr="hx-get=@{/api/autocomplete}"
+                       hx-trigger="focus, keyup changed delay:300ms"
+                       hx-target="#ac-box" hx-swap="innerHTML"
+                       class="flex-1 px-4 py-3 text-[15px] border-2 border-primary rounded-full outline-none focus:ring-2 focus:ring-primary/30">
+                <button type="submit"
+                        class="px-6 py-3 text-[15px] rounded-full bg-primary text-white cursor-pointer hover:bg-primary/90">
+                    검색
+                </button>
+            </form>
+            <div id="ac-box" class="ac-box absolute left-0 right-20 top-full mt-1 z-10 text-left"></div>
+        </div>
 
-        <p class="mt-8 text-[13px] text-gray-400">
-            추천·인기·내 검색어와 자동완성은 4단계(UI)에서 연결됩니다.
-        </p>
+        <!-- 추천 검색어 (관리자 등록) -->
+        <div class="max-w-xl mx-auto mt-5 flex justify-center"
+             th:attr="hx-get=@{/api/keyword/recommend}" hx-trigger="load" hx-swap="innerHTML"></div>
+
+        <!-- 인기 검색어 (MV 자동 집계) -->
+        <div class="max-w-xs mx-auto mt-10"
+             th:attr="hx-get=@{/api/keyword/popular}" hx-trigger="load" hx-swap="innerHTML"></div>
     </section>
 </main>
 </body>

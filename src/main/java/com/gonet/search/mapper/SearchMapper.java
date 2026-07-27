@@ -39,4 +39,7 @@ public interface SearchMapper {
                                    @Param("docType") String docType,
                                    @Param("fromTs") OffsetDateTime fromTs,
                                    @Param("toTs") OffsetDateTime toTs);
+
+    /** 자동완성: 색인 제목 유사도(pg_trgm) 추천 */
+    List<String> autocomplete(@Param("q") String q, @Param("limit") int limit);
 }

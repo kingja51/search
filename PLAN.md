@@ -5,9 +5,10 @@
 
 ## 현재 상태 요약 (2026-07-27)
 
-- **완료**: 설계 확정 → 1단계(기반 구축, MyBatis 전환 포함) → 2단계(분석·색인) → 3단계(검색 코어)
-- **대기 중인 검증**: 로컬 PostgreSQL 18 미설치 → 앱 기동 + Flyway + 색인·검색 실동작 확인 불가
-- **다음 작업**: PostgreSQL 준비 → 기동·검색 검증 → 4단계(UI 고도화)
+- **완료**: 설계 확정 → 1단계(기반 구축, MyBatis 전환) → 2단계(분석·색인) → 3단계(검색 코어) → 4단계(UI 고도화)
+- **적용 스택 변화**: Lucene 10.4.0 · Tailwind CSS v4 CDN
+- **대기 중인 검증**: 로컬 PostgreSQL 18 미설치 → 앱 기동 + Flyway + 색인·검색·UI 실동작 확인 불가
+- **다음 작업**: PostgreSQL 준비 → 기동·검색·UI 검증 → 5단계(캐시·관측성)
 
 ---
 
@@ -50,13 +51,19 @@
 | SearchUsrController /result | ✅ | 조건 9종 바인딩(SearchCondition), 기본 결과 화면(usr/results.html — 4단계에서 HTMX 고도화) |
 | 검색 실동작 검증 | ⏸ | **PostgreSQL 준비 후** — /result?q=휴대폰 → 동의어(핸드폰) 결과·하이라이트 확인 |
 
-## 4단계: UI ⏸
+## 4단계: UI ✅
 
-- 검색 메인: 추천 검색어(RecommendKeywordService)·인기 검색어·내 검색어 드롭다운
-- 검색 결과: 전체 탭 그룹 뷰(10건+"더보기 (N건)") / 개별 탭 무한스크롤(hx-trigger="revealed")
-- 상세검색 패널: 시작일~종료일, 결과 내 재검색(qPrev 칩), AND/OR — URL 쿼리스트링 유지
-- 자동완성: AutocompleteApiController + pg_trgm (hx-trigger keyup delay 300ms)
-- result-item fragment: 제목·내용(2000자 발췌)·등록일·링크 + 하이라이트
+| 작업 | 상태 | 산출물 |
+|---|---|---|
+| 검색 메인 위젯 | ✅ | 추천 검색어 칩(hx load) + 인기 검색어 TOP10(hx load) + 검색창 포커스 시 내 검색어 드롭다운 |
+| 자동완성 | ✅ | AutocompleteApiController + pg_trgm similarity 쿼리, keyup 300ms 디바운스. 빈 입력=내 검색어, 2글자 미만=빈 응답 |
+| 키워드 API | ✅ | KeywordApiController — /api/keyword/popular·recommend·my (fragment 응답), RecommendKeywordService |
+| 결과 화면 필터 | ✅ | 정렬 토글(정확도/최신순) + 기간 버튼(전체/실시간/1일/이번주/이번달) + 개별 탭 카테고리 칩(건수 포함) |
+| 상세검색 패널 | ✅ | details 토글 — (A) 시작일~종료일 + AND/OR 조건 적용 / (B) 결과 내 재검색(qPrev 누적). 조건은 전부 URL 유지 |
+| qPrev 칩 | ✅ | 적용된 재검색어 칩 + × 클릭 시 해당 조건만 제거 |
+| 무한스크롤 | ✅ | /result/items fragment + sentinel(hx-trigger="revealed" outerHTML 교체) |
+| 위젯 fragment | ✅ | usr/keywords.html (recommend/popular/myKeywords/autocomplete/empty) |
+| UI 실동작 검증 | ⏸ | **PostgreSQL 준비 후** — 무한스크롤·자동완성·재검색 칩 동작 확인 |
 
 ## 5단계: 캐시·관측성 ⏸
 

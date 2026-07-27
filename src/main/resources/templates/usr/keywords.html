@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- 추천 검색어: 관리자 등록, display_order 순 칩 -->
+<div th:fragment="recommend" th:if="${!#lists.isEmpty(recommend)}"
+     class="flex flex-wrap items-center gap-2">
+    <span class="text-xs font-semibold text-gray-500">추천</span>
+    <a th:each="r : ${recommend}" th:href="@{/result(q=${r.keyword})}"
+       class="px-3 py-1 text-[13px] rounded-full border border-primary/40 text-primary hover:bg-primary hover:text-white transition-colors"
+       th:text="${r.keyword}">추천어</a>
+</div>
+
+<!-- 인기 검색어: MV 집계 TOP 10 -->
+<div th:fragment="popular" th:if="${!#lists.isEmpty(popular)}" class="text-left">
+    <h3 class="text-xs font-semibold text-gray-500 mb-2">인기 검색어</h3>
+    <ol class="space-y-1.5">
+        <li th:each="p, st : ${popular}" class="flex items-center gap-2 text-[13px]">
+            <span class="w-5 text-center font-bold"
+                  th:classappend="${st.index < 3} ? 'text-primary' : 'text-gray-400'"
+                  th:text="${st.count}">1</span>
+            <a th:href="@{/result(q=${p.keyword})}" class="hover:underline" th:text="${p.keyword}">키워드</a>
+            <span class="ml-auto text-[11px] text-gray-400" th:text="${p.searchCount}">0</span>
+        </li>
+    </ol>
+</div>
+
+<!-- 내 검색어: 검색창 포커스 시 드롭다운 (session -> IP 폴백) -->
+<div th:fragment="myKeywords" th:if="${!#lists.isEmpty(myKeywords)}"
+     class="bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+    <p class="px-4 pt-2.5 pb-1 text-[11px] font-semibold text-gray-400">내 검색어</p>
+    <a th:each="m : ${myKeywords}" th:href="@{/result(q=${m.keyword})}"
+       class="block px-4 py-2 text-[13px] hover:bg-gray-50" th:text="${m.keyword}">키워드</a>
+</div>
+
+<!-- 자동완성 드롭다운 -->
+<div th:fragment="autocomplete" th:if="${!#lists.isEmpty(suggestions)}"
+     class="bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+    <a th:each="s : ${suggestions}" th:href="@{/result(q=${s})}"
+       class="block px-4 py-2 text-[13px] hover:bg-gray-50" th:text="${s}">제목</a>
+</div>
+
+<!-- 빈 응답 (2글자 미만 등) -->
+<th:block th:fragment="empty"></th:block>
+
+</body>
+</html>

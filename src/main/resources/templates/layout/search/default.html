@@ -33,5 +33,16 @@
 <footer class="border-t border-gray-200 mt-12 py-5 text-center text-xs text-gray-400">
     search engine · PostgreSQL 18 + Nori
 </footer>
+
+<script>
+    // 자동완성/내 검색어 드롭다운(.ac-box): 바깥 클릭 시 닫기
+    document.addEventListener('click', function (e) {
+        document.querySelectorAll('.ac-box').forEach(function (box) {
+            if (!box.contains(e.target) && !box.parentElement.contains(e.target)) {
+                box.innerHTML = '';
+            }
+        });
+    });
+</script>
 </body>
 </html>
