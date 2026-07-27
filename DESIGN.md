@@ -948,12 +948,14 @@ search:
 
 | 캐시명 | 내용 | 최대 크기 | TTL | 무효화 시점 |
 |---|---|---|---|---|
-| `synonyms` | 단어 → 동의어 확장 집합 | 10,000 | 없음(수동) | 동의어사전 CRUD 시 전체 evict |
-| `bannedWords` | 금지어 전체 Set (단일 엔트리) | 1 | 없음(수동) | 금지어사전 CRUD 시 evict |
-| `popularKeywords` | 인기 검색어 TOP 10 | 1 | 1분 | TTL 자동 |
-| `recommendKeywords` | 추천 검색어 (노출기간 필터 적용분) | 1 | 10분 | TTL 자동 + 추천어 CRUD 시 evict |
-| `autocomplete` | 접두어 → 자동완성 후보 | 5,000 | 5분 | TTL 자동 |
-| `searchFirstPage` | 인기 키워드 1페이지 결과 | 1,000 | 30초 | TTL 자동 (색인 갱신 지연 허용) |
+| `synonyms` | 동의어 확장 맵 전체 (단어→그룹, 단일 엔트리) | 1 | 없음(수동) | 사전 변경 시 `DictionaryService.reloadDictionaries()` evict |
+| `bannedWords` | 금지어 스냅샷 BLOCK/MASK (단일 엔트리) | 1 | 없음(수동) | 상동 |
+| `popularKeywords` | 인기 검색어 TOP N (limit별 키) | 10 | 1분 | TTL 자동 |
+| `recommendKeywords` | 추천 검색어 (노출기간 필터 적용분) | 1 | 10분 | TTL 자동 + 상동 evict |
+| `autocomplete` | 접두어 → 자동완성 후보 | 5,000 | 5분 | TTL 자동 + 상동 evict |
+
+> **searchFirstPage(검색 1페이지 결과 캐시)는 v1.0에서 보류** — 캐시 히트 시 검색 로그 적재가
+> 생략되어 인기 검색어 집계·통계가 왜곡된다. 필요해지면 로그와 분리된 FTS 레이어 캐시로 재설계한다.
 
 ### 5.2 CacheConfig 구성 방침
 
@@ -965,12 +967,11 @@ public class CacheConfig {
     public CacheManager cacheManager() {
         SimpleCacheManager manager = new SimpleCacheManager();
         manager.setCaches(List.of(
-            buildCache("synonyms",          10_000, null),
-            buildCache("bannedWords",            1, null),
-            buildCache("popularKeywords",        1, Duration.ofMinutes(1)),
-            buildCache("recommendKeywords",      1, Duration.ofMinutes(10)),
-            buildCache("autocomplete",       5_000, Duration.ofMinutes(5)),
-            buildCache("searchFirstPage",    1_000, Duration.ofSeconds(30))
+            buildCache("synonyms",              1, null),
+            buildCache("bannedWords",           1, null),
+            buildCache("popularKeywords",      10, Duration.ofMinutes(1)),
+            buildCache("recommendKeywords",     1, Duration.ofMinutes(10)),
+            buildCache("autocomplete",      5_000, Duration.ofMinutes(5))
         ));
         return manager;
     }

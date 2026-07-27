@@ -3,12 +3,15 @@ package com.gonet.search.service;
 import com.gonet.search.domain.SearchKeywordLog;
 import com.gonet.search.dto.KeywordStat;
 import com.gonet.search.mapper.SearchKeywordLogMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -22,6 +25,7 @@ import java.util.List;
 public class KeywordLogService {
 
     private final SearchKeywordLogMapper logMapper;
+    private final MeterRegistry meterRegistry;
 
     /**
      * 검색 로그 비동기 적재.
@@ -37,7 +41,8 @@ public class KeywordLogService {
         }
     }
 
-    /** 인기 검색어 TOP N (vw_search_popular_keyword — 최근 7일, 차단 검색 제외) */
+    /** 인기 검색어 TOP N — popularKeywords 캐시(TTL 1분) */
+    @Cacheable(cacheNames = "popularKeywords", key = "#limit")
     public List<KeywordStat> popularKeywords(int limit) {
         return logMapper.findPopular(limit);
     }
@@ -59,7 +64,9 @@ public class KeywordLogService {
         try {
             long start = System.currentTimeMillis();
             logMapper.refreshPopular();
-            log.info("인기 검색어 MV 갱신 완료 ({}ms)", System.currentTimeMillis() - start);
+            long elapsed = System.currentTimeMillis() - start;
+            meterRegistry.timer("keyword.popular.refresh").record(Duration.ofMillis(elapsed));
+            log.info("인기 검색어 MV 갱신 완료 ({}ms)", elapsed);
         } catch (Exception e) {
             log.warn("인기 검색어 MV 갱신 실패 — 다음 주기에 재시도", e);
         }

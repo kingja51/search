@@ -3,6 +3,7 @@ package com.gonet.search.service;
 import com.gonet.search.domain.DicBanned;
 import com.gonet.search.mapper.DicBannedMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
@@ -13,7 +14,7 @@ import java.util.Set;
 /**
  * 금지어 필터 (DESIGN.md 4.3 - 2단계).
  * BLOCK: 검색 자체 차단 / MASK: 검색은 허용하되 해당 토큰을 검색식에서 제외(결과 노출 제한).
- * ※ 5단계에서 bannedWords 캐시 적용 예정 — 지금은 요청당 1회 스냅샷 조회.
+ * 스냅샷은 bannedWords 캐시(수동 무효화 — DictionaryService.reloadDictionaries)로 서빙.
  */
 @Service
 @RequiredArgsConstructor
@@ -21,7 +22,8 @@ public class BannedWordService {
 
     private final DicBannedMapper dicBannedMapper;
 
-    /** 요청 1건 처리용 금지어 스냅샷 (검색 파이프라인이 1회 로드해 재사용) */
+    /** 금지어 스냅샷 — 캐시 1엔트리, 사전 변경 시 reloadDictionaries()가 evict */
+    @Cacheable(cacheNames = "bannedWords", key = "'all'")
     public Snapshot snapshot() {
         Set<String> blocked = new HashSet<>();
         Set<String> masked = new HashSet<>();

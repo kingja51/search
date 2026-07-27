@@ -5,6 +5,8 @@ import com.gonet.search.domain.SearchIndex;
 import com.gonet.search.domain.SearchSource;
 import com.gonet.search.mapper.SearchIndexMapper;
 import com.gonet.search.mapper.SearchSourceMapper;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +16,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 색인 동기화 파이프라인 (DESIGN.md 4.4).
@@ -28,6 +31,7 @@ public class IndexingService {
     private final SearchSourceMapper searchSourceMapper;
     private final SearchIndexMapper searchIndexMapper;
     private final KoreanAnalyzer koreanAnalyzer;
+    private final MeterRegistry meterRegistry;
 
     @Value("${search.index.chunk-size:500}")
     private int chunkSize;
@@ -59,6 +63,7 @@ public class IndexingService {
         int upserted = upsertInChunks(changed);
         int deleted = searchIndexMapper.deleteOrphans();
         long elapsed = System.currentTimeMillis() - start;
+        recordSyncTimer("diff", elapsed);
         log.info("색인 동기화 완료(diff): 신규·변경 {}건, 삭제 {}건, {}ms", upserted, deleted, elapsed);
         return new SyncResult("diff", upserted, deleted, elapsed);
     }
@@ -70,6 +75,7 @@ public class IndexingService {
         int upserted = upsertInChunks(all);
         int deleted = searchIndexMapper.deleteOrphans();
         long elapsed = System.currentTimeMillis() - start;
+        recordSyncTimer("full", elapsed);
         log.info("전체 재색인 완료(full): {}건, 삭제 {}건, {}ms", upserted, deleted, elapsed);
         return new SyncResult("full", upserted, deleted, elapsed);
     }
@@ -101,6 +107,14 @@ public class IndexingService {
         index.setContentHash(source.getContentHash());
         index.setSourceUpdatedAt(source.getUpdatedAt());
         return index;
+    }
+
+    private void recordSyncTimer(String mode, long elapsedMs) {
+        Timer.builder("index.sync")
+                .tag("mode", mode)
+                .description("색인 동기화/전체 재색인 소요시간")
+                .register(meterRegistry)
+                .record(elapsedMs, TimeUnit.MILLISECONDS);
     }
 
     /** 동기화 결과 요약 (로그·어드민·메트릭용) */

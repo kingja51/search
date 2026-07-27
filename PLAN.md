@@ -5,10 +5,10 @@
 
 ## 현재 상태 요약 (2026-07-27)
 
-- **완료**: 설계 확정 → 1단계(기반 구축, MyBatis 전환) → 2단계(분석·색인) → 3단계(검색 코어) → 4단계(UI 고도화)
+- **완료**: 설계 확정 → 1단계(기반 구축, MyBatis 전환) → 2단계(분석·색인) → 3단계(검색 코어) → 4단계(UI) → 5단계(캐시·관측성)
 - **적용 스택 변화**: Lucene 10.4.0 · Tailwind CSS v4 CDN
-- **대기 중인 검증**: 로컬 PostgreSQL 18 미설치 → 앱 기동 + Flyway + 색인·검색·UI 실동작 확인 불가
-- **다음 작업**: PostgreSQL 준비 → 기동·검색·UI 검증 → 5단계(캐시·관측성)
+- **대기 중인 검증**: 로컬 PostgreSQL 18 미설치 → 앱 기동 + Flyway + 색인·검색·UI·메트릭 실동작 확인 불가
+- **다음 작업**: PostgreSQL 준비 → 전체 실동작 검증 → 6단계(마무리)
 
 ---
 
@@ -65,12 +65,17 @@
 | 위젯 fragment | ✅ | usr/keywords.html (recommend/popular/myKeywords/autocomplete/empty) |
 | UI 실동작 검증 | ⏸ | **PostgreSQL 준비 후** — 무한스크롤·자동완성·재검색 칩 동작 확인 |
 
-## 5단계: 캐시·관측성 ⏸
+## 5단계: 캐시·관측성 ✅
 
-- CacheConfig: Caffeine 6종 (synonyms, bannedWords, popularKeywords, recommendKeywords, autocomplete, searchFirstPage) + recordStats()
-- 사전 변경 시 AFTER_COMMIT evict + Analyzer reload 연동
-- ObservabilityConfig: search.query Timer, search.noresult/blocked Counter, index.sync Timer, keyword.popular.refresh Timer, index.documents Gauge
-- @Observed span 분리 (analyze/expand/query/highlight), @Async·@Scheduled trace 전파(TaskDecorator)
+| 작업 | 상태 | 산출물 |
+|---|---|---|
+| CacheConfig | ✅ | Caffeine 5종(synonyms/bannedWords/popularKeywords/recommendKeywords/autocomplete) + recordStats(). searchFirstPage는 보류(캐시 히트 시 로그 누락 → 인기검색어 왜곡 — DESIGN 5.1 명시) |
+| @Cacheable 적용 | ✅ | BannedWordService·SynonymService(1엔트리 스냅샷), RecommendKeywordService, KeywordLogService.popular, AutocompleteService(신규, 접두어 키) |
+| 사전 리로드 | ✅ | DictionaryService.reloadDictionaries() — 캐시 4종 evict + Nori 사전 교체. 어드민 도입 시 AFTER_COMMIT 훅에서 호출 |
+| 커스텀 메트릭 | ✅ | search.query Timer(doc_type·blocked) / search.results Summary / search.blocked·noresult Counter / index.sync Timer(mode) / keyword.popular.refresh Timer / index.documents Gauge(도메인별, DB 다운 시 -1) |
+| 단계별 span | ✅ | Observation API로 search.analyze/expand/query/highlight 분리 (SearchService 파이프라인 재구성) |
+| trace 전파 | ✅ | ContextPropagatingTaskDecorator 빈 — @Async 로그 스레드로 traceId 전파 |
+| 실동작 검증 | ⏸ | **PostgreSQL 준비 후** — :9090/actuator/prometheus에서 캐시 히트율·search.query 확인 |
 
 ## 6단계: 마무리 ⏸
 

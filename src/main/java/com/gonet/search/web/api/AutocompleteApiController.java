@@ -1,7 +1,7 @@
 package com.gonet.search.web.api;
 
 import com.gonet.search.config.ClientIpHolder;
-import com.gonet.search.mapper.SearchMapper;
+import com.gonet.search.service.AutocompleteService;
 import com.gonet.search.service.KeywordLogService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +23,7 @@ public class AutocompleteApiController {
     private static final int MIN_LENGTH = 2;
     private static final int LIMIT = 10;
 
-    private final SearchMapper searchMapper;
+    private final AutocompleteService autocompleteService;
     private final KeywordLogService keywordLogService;
 
     @GetMapping("/api/autocomplete")
@@ -39,7 +39,7 @@ public class AutocompleteApiController {
         if (query.length() < MIN_LENGTH) {
             return "usr/keywords :: empty";
         }
-        List<String> suggestions = searchMapper.autocomplete(query, LIMIT);
+        List<String> suggestions = autocompleteService.suggest(query, LIMIT);
         model.addAttribute("suggestions", suggestions);
         return "usr/keywords :: autocomplete";
     }

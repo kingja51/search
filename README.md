@@ -42,6 +42,6 @@ Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreS
 - [x] 2단계: 분석·색인 (Nori 래퍼 + 해시 diff 동기화 + 스케줄) — ※ 실색인 검증은 PostgreSQL 준비 후
 - [x] 3단계: 검색 코어 (금지어→동의어→tsquery→FTS→하이라이트→로그) — ※ 실검색 검증은 PostgreSQL 준비 후
 - [x] 4단계: UI (위젯·자동완성·상세검색 패널·무한스크롤, Tailwind v4) — ※ 실동작 검증은 PostgreSQL 준비 후
-- [ ] 5단계: 캐시·관측성
+- [x] 5단계: 캐시·관측성 (Caffeine 5종 + 커스텀 메트릭 + 단계별 span) — ※ 실동작 검증은 PostgreSQL 준비 후
 - [ ] 6단계: 마무리 (v1.0)
 - [ ] (추후) 어드민·권한
