@@ -33,6 +33,8 @@ Elasticsearch 같은 별도 검색 서버 없이 **PostgreSQL 18의 Full-Text Se
 | 형태소 분석 | `org.apache.lucene:lucene-analysis-nori` (9.x) | 앱 내장 라이브러리로 사용 |
 | View | Thymeleaf + HTMX | SPA 없이 부분 렌더링 (검색 결과, 자동완성) |
 | 마이그레이션 | Flyway | 스키마 버전 관리 |
+| 캐시 | Caffeine (Spring Cache) | 사전·인기검색어·자동완성 캐시, 통계 노출 |
+| 관측성 | Actuator + Micrometer(Prometheus) + Tracing(Brave) | 메트릭 수집, 로그 traceId/spanId 연동 |
 | 기타 | Lombok, spring-boot-devtools | |
 
 ### 주요 Maven 의존성
@@ -50,6 +52,30 @@ Elasticsearch 같은 별도 검색 서버 없이 **PostgreSQL 18의 Full-Text Se
 <dependency>
     <groupId>org.flywaydb</groupId>
     <artifactId>flyway-database-postgresql</artifactId>
+</dependency>
+
+<!-- 캐시 -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-cache</artifactId>
+</dependency>
+<dependency>
+    <groupId>com.github.ben-manes.caffeine</groupId>
+    <artifactId>caffeine</artifactId>
+</dependency>
+
+<!-- 관측성: 메트릭 + 로그 트레이스 -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+<dependency>
+    <groupId>io.micrometer</groupId>
+    <artifactId>micrometer-registry-prometheus</artifactId>
+</dependency>
+<dependency>
+    <groupId>io.micrometer</groupId>
+    <artifactId>micrometer-tracing-bridge-brave</artifactId>
 </dependency>
 <!-- htmx는 webjar 또는 정적 파일로 포함 -->
 ```
@@ -169,6 +195,7 @@ CREATE TABLE search_keyword_log (
     is_blocked      BOOLEAN      NOT NULL DEFAULT false,  -- 금지어로 차단됐는지
     session_id      VARCHAR(64),
     client_ip       VARCHAR(45),
+    trace_id        VARCHAR(32),                -- 앱 로그(traceId)와 상호 추적용
     elapsed_ms      INT,
     searched_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
@@ -236,6 +263,8 @@ com.kingja.search
 ├─ SearchApplication.java
 ├─ config/
 │   ├─ NoriConfig.java            # Nori Analyzer 빈 (사용자 사전 로딩 포함)
+│   ├─ CacheConfig.java           # Caffeine 캐시 정의 (캐시별 TTL/크기, 통계 활성화)
+│   ├─ ObservabilityConfig.java   # 커스텀 메트릭(Timer/Counter), @Observed AOP
 │   └─ WebConfig.java
 ├─ analyzer/
 │   ├─ KoreanAnalyzer.java        # Nori 래퍼: 문자열 → 토큰 리스트
@@ -282,13 +311,15 @@ Analyzer analyzer = new KoreanAnalyzer(
 
 ```
 1. 입력 정규화        trim, 최대 길이 제한
-2. 금지어 검사        BLOCK 타입 포함 시 → 차단 응답 + is_blocked=true 로그
-3. 형태소 분석        Nori → [휴대폰, 케이스]
-4. 동의어 확장        휴대폰 → (휴대폰 | 핸드폰 | 스마트폰)
+2. 금지어 검사        bannedWords 캐시 조회 → BLOCK 포함 시 차단 응답 + is_blocked=true 로그
+3. 형태소 분석        Nori → [휴대폰, 케이스]                       ← span: search.analyze
+4. 동의어 확장        synonyms 캐시 조회 → (휴대폰 | 핸드폰 | 스마트폰)  ← span: search.expand
 5. tsquery 생성       (휴대폰 | 핸드폰 | 스마트폰) & 케이스
-6. FTS 실행           search_index에서 ts_rank 정렬 + 페이징
-7. 로그 기록          @Async로 비동기 저장 (검색 응답 지연 없음)
+6. FTS 실행           search_index에서 ts_rank 정렬 + 페이징          ← span: search.query
+7. 로그 기록          @Async 비동기 저장 (traceId 함께 기록, 응답 지연 없음)
 ```
+
+전 단계가 하나의 traceId로 묶이고, 단계별 소요시간은 span과 `search.query` Timer 메트릭으로 확인한다.
 
 핵심 네이티브 쿼리:
 
@@ -310,7 +341,126 @@ LIMIT :size OFFSET :offset;
 
 ---
 
-## 5. 화면 설계 (Thymeleaf + HTMX)
+## 5. 캐시 설계 (Caffeine)
+
+검색 요청마다 사전 테이블을 조회하면 DB 부하가 검색량에 비례해 커진다.
+**읽기 빈도가 높고 변경 빈도가 낮은 데이터**를 Caffeine 인메모리 캐시로 흡수한다.
+
+### 5.1 캐시 목록
+
+| 캐시명 | 내용 | 최대 크기 | TTL | 무효화 시점 |
+|---|---|---|---|---|
+| `synonyms` | 단어 → 동의어 확장 집합 | 10,000 | 없음(수동) | 동의어사전 CRUD 시 전체 evict |
+| `bannedWords` | 금지어 전체 Set (단일 엔트리) | 1 | 없음(수동) | 금지어사전 CRUD 시 evict |
+| `popularKeywords` | 인기 검색어 TOP 10 | 1 | 1분 | TTL 자동 |
+| `autocomplete` | 접두어 → 자동완성 후보 | 5,000 | 5분 | TTL 자동 |
+| `searchFirstPage` | 인기 키워드 1페이지 결과 | 1,000 | 30초 | TTL 자동 (색인 갱신 지연 허용) |
+
+### 5.2 CacheConfig 구성 방침
+
+```java
+@EnableCaching
+@Configuration
+public class CacheConfig {
+    @Bean
+    public CacheManager cacheManager() {
+        SimpleCacheManager manager = new SimpleCacheManager();
+        manager.setCaches(List.of(
+            buildCache("synonyms",        10_000, null),
+            buildCache("bannedWords",          1, null),
+            buildCache("popularKeywords",      1, Duration.ofMinutes(1)),
+            buildCache("autocomplete",     5_000, Duration.ofMinutes(5)),
+            buildCache("searchFirstPage",  1_000, Duration.ofSeconds(30))
+        ));
+        return manager;
+    }
+
+    private CaffeineCache buildCache(String name, long maxSize, Duration ttl) {
+        Caffeine<Object, Object> builder = Caffeine.newBuilder()
+            .maximumSize(maxSize)
+            .recordStats();                  // ★ Micrometer 캐시 메트릭 필수
+        if (ttl != null) builder.expireAfterWrite(ttl);
+        return new CaffeineCache(name, builder.build());
+    }
+}
+```
+
+- `recordStats()` 필수 — Spring Boot가 `cache.gets{result=hit|miss}`, `cache.size`, `cache.evictions` 메트릭을 Prometheus로 자동 노출
+- 사용 예: `@Cacheable("synonyms")`, 사전 변경 시 `@CacheEvict(value = "synonyms", allEntries = true)`
+- **주의**: 사전 CRUD는 캐시 evict + Nori Analyzer 리로드를 한 트랜잭션 완료 후(`@TransactionalEventListener(phase = AFTER_COMMIT)`) 수행 — 커밋 전 evict 시 이전 데이터가 다시 캐시될 수 있음
+- 캐시 상태 확인: Actuator `/actuator/caches`, 삭제: `DELETE /actuator/caches/{name}`
+
+---
+
+## 6. 관측성 설계 (Actuator + Prometheus + Tracing)
+
+### 6.1 로그 트레이스 (micrometer-tracing-bridge-brave)
+
+모든 HTTP 요청에 **traceId/spanId가 자동 생성**되어 MDC에 주입된다.
+검색 1건이 거치는 전 과정(금지어 필터 → 분석 → 확장 → FTS → 로그)을 같은 traceId로 묶어 추적한다.
+
+```yaml
+# application.yml
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
+management:
+  tracing:
+    sampling:
+      probability: 1.0        # 개발: 100%, 운영: 0.1 권장
+```
+
+로그 출력 예:
+
+```
+2026-07-27T10:15:23 INFO [search,64bf3ad1e0c31f92,341f2c7a] SearchService : q="휴대폰 케이스" tokens=[휴대폰,케이스] expanded="(휴대폰|핸드폰|스마트폰) & 케이스" results=124 elapsed=18ms
+```
+
+- `@Async` 로그 기록 스레드에도 trace 전파: `ContextPropagatingTaskDecorator`를 Executor에 등록
+- 검색 파이프라인 내부 구간별 span 분리: `@Observed(name = "search.analyze")` 등 단계별 어노테이션 → 어느 단계가 느린지 span 단위로 확인
+- search_keyword_log에 `trace_id VARCHAR(32)` 컬럼 추가 → 로그 테이블에서 앱 로그로 역추적 가능
+- (선택) 나중에 Zipkin을 띄우면 `zipkin-reporter-brave` 의존성만 추가하면 시각화 연동 완료
+
+### 6.2 메트릭 (Actuator + Prometheus)
+
+```yaml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus, caches
+  endpoint:
+    health:
+      show-details: when-authorized
+```
+
+| 메트릭 | 종류 | 태그 | 용도 |
+|---|---|---|---|
+| `search.query` | Timer | `category`, `blocked` | 검색 응답시간 p95/p99, 처리량 |
+| `search.results` | DistributionSummary | | 결과 건수 분포 (0건 비율 감시) |
+| `search.blocked` | Counter | | 금지어 차단 횟수 |
+| `search.noresult` | Counter | | 무결과 검색 횟수 (사전 보강 신호) |
+| `index.rebuild` | Timer | | 전체 재색인 소요시간 |
+| `index.documents` | Gauge | | 색인 문서 수 |
+| `cache.gets` 등 | (자동) | `cache`, `result` | Caffeine 히트율 |
+| `hikaricp.*`, `jvm.*`, `http.server.requests` | (자동) | | DB 커넥션풀, JVM, HTTP 전반 |
+
+커스텀 메트릭 기록 예:
+
+```java
+Timer.Sample sample = Timer.start(registry);
+SearchResult result = doSearch(query);
+sample.stop(Timer.builder("search.query")
+    .tag("blocked", String.valueOf(result.blocked()))
+    .register(registry));
+```
+
+- 수집: Prometheus가 `/actuator/prometheus`를 15s 간격 스크레이프 → Grafana 대시보드 (검색 QPS, p95 지연, 캐시 히트율, 무결과율 4개 패널이면 1인 운영에 충분)
+- `/actuator/**`는 어드민과 동일하게 접근 제한 (Spring Security 도입 시 role 제한, 그 전엔 관리 포트 분리: `management.server.port=9090`)
+
+---
+
+## 7. 화면 설계 (Thymeleaf + HTMX)
 
 | 화면 | URL | HTMX 포인트 |
 |---|---|---|
@@ -334,7 +484,7 @@ templates/
 
 ---
 
-## 6. API 설계 요약
+## 8. API 설계 요약
 
 | Method | URL | 설명 |
 |---|---|---|
@@ -342,12 +492,14 @@ templates/
 | GET | `/api/autocomplete?q=` | 자동완성 (pg_trgm 유사도) |
 | GET | `/api/popular` | 인기 검색어 TOP 10 |
 | POST/PUT/DELETE | `/admin/dic/word` 등 | 사전 CRUD |
-| POST | `/admin/dic/reload` | 분석기 사전 리로드 |
+| POST | `/admin/dic/reload` | 분석기 사전 리로드 + 관련 캐시 evict |
 | POST | `/admin/index/rebuild` | 전체 재색인 |
+| GET | `/actuator/prometheus` | Prometheus 메트릭 스크레이프 (관리 포트) |
+| GET | `/actuator/health`, `/actuator/caches` | 헬스체크, 캐시 상태 조회 |
 
 ---
 
-## 7. 개발 로드맵 (1인 개발 기준)
+## 9. 개발 로드맵 (1인 개발 기준)
 
 | 단계 | 내용 | 산출물 |
 |---|---|---|
@@ -355,18 +507,21 @@ templates/
 | **2. 분석·색인** | Nori 래퍼, 사용자 사전 로딩, IndexingService, 샘플 데이터 색인 | 재색인 후 search_index 채워짐 |
 | **3. 검색 코어** | 금지어 필터 → 동의어 확장 → tsquery → FTS 검색 + 로그 | `/search` 동작 |
 | **4. UI** | 검색 메인/결과(HTMX 무한스크롤), 자동완성 | 사용자 화면 완성 |
-| **5. 어드민** | 사전 3종 CRUD + 리로드, 재색인 버튼, 통계 | 운영 도구 완성 |
-| **6. 마무리** | 인기검색어 MV 스케줄 갱신, 인덱스 튜닝, README, 배포 | v1.0 태그 |
+| **5. 어드민** | 사전 3종 CRUD + 리로드(캐시 evict 연동), 재색인 버튼, 통계 | 운영 도구 완성 |
+| **6. 캐시·관측성** | Caffeine 캐시 적용, Actuator/Prometheus 노출, 트레이스 로그 패턴, 커스텀 메트릭 | 캐시 히트율·p95 지연 확인 가능 |
+| **7. 마무리** | 인기검색어 MV 스케줄 갱신, 인덱스 튜닝, Grafana 대시보드, README, 배포 | v1.0 태그 |
 
 각 단계는 독립적으로 커밋/푸시 가능하도록 수직 분할되어 있어, 중단 후 재개가 쉽다.
 
 ---
 
-## 8. 설계 결정 사항 (요약)
+## 10. 설계 결정 사항 (요약)
 
 1. **검색엔진 서버 없이 PostgreSQL FTS 채택** — 1인 운영 부담 최소화. 데이터 수백만 건 규모까지 GIN 인덱스로 충분.
 2. **Nori는 앱 내장 라이브러리** — Elasticsearch 없이 Lucene 분석기만 사용. 사전은 DB에서 로드해 무재기동 리로드.
 3. **tsvector는 `simple` 설정** — 형태소 분석 품질을 전적으로 앱(Nori + 사전)이 통제.
 4. **검색 테이블은 VIEW(소스 정의) + 색인 테이블(물리 저장) 조합** — 순수 MV로는 자바 형태소 분석을 끼워 넣을 수 없으므로, `v_search_source`(VIEW) → 앱 분석 → `search_index` 구조. 인기검색어는 MATERIALIZED VIEW.
 5. **동의어는 검색 시점(query-time) 확장** — 색인 시점 확장 대비 사전 수정 시 재색인 불필요.
-6. **로그는 @Async 비동기 기록** — 검색 응답 속도에 영향 없음.
+6. **로그는 @Async 비동기 기록** — 검색 응답 속도에 영향 없음. trace 컨텍스트는 TaskDecorator로 전파.
+7. **사전은 Caffeine 캐시로 서빙** — 검색 트래픽이 사전 테이블을 직접 때리지 않음. 변경 시 커밋 후(evict → 리로드) 순서로 일관성 보장.
+8. **관측성은 처음부터 내장** — traceId 로그 패턴 + Prometheus 메트릭. 별도 APM 없이 "어느 검색이 왜 느린지"를 span과 Timer로 추적. Zipkin은 필요해질 때 reporter 의존성만 추가.
