@@ -382,6 +382,23 @@ CREATE UNIQUE INDEX uq_vw_popular ON vw_search_popular_keyword (keyword);
 > **해시 기반 변경 감지**: 색인 동기화 스케줄(매일 2회)이 `vw_search_source.content_hash`와
 > `tn_search_index.content_hash`를 비교해 신규·변경·삭제 건만 처리한다. (상세: 4.4)
 
+### 3.6 샘플 데이터 (Flyway `V4__sample_data.sql`)
+
+개발·테스트용 샘플 데이터를 각 테이블 **10건씩** 제공한다. 전체 구문: [db/V4__sample_data.sql](db/V4__sample_data.sql)
+(프로젝트 스캐폴딩 시 `src/main/resources/db/migration/`으로 이동)
+
+| 테이블 | 샘플 구성 포인트 |
+|---|---|
+| `tn_content` | 회사소개·기술문서 등 9건 ACTIVE + 1건 DELETED (색인 제외 검증용) |
+| `tn_file` | pdf/hwp/docx/xlsx/pptx, extract_text 포함, ref_type으로 콘텐츠·게시글 연결 |
+| `tn_bbs` | notice/faq/free/qna 4개 게시판 코드, 1건 DELETED |
+| `tn_menu` | 실제 화면 경로와 일치하는 menu_path, 1건 use_yn='N' (색인 제외 검증용) |
+| `tn_search_dic_word` | 고유명사(고넷) + 복합명사 분해(검색엔진→검색 엔진 등), 1건 비활성 |
+| `tn_search_dic_synonym` | 4개 그룹(휴대폰·검색엔진·문의·공지), 그룹당 대표어 1개 |
+| `tn_search_dic_banned` | BLOCK 8건 + MASK 2건, 1건 비활성 (해제 사례) |
+
+DELETED / use_yn='N' / enabled=false 데이터를 의도적으로 섞어 **색인 제외·사전 비활성 로직을 검증**할 수 있게 했다.
+
 ---
 
 ## 4. 애플리케이션 아키텍처
@@ -689,6 +706,10 @@ templates/
 검색 결과 화면은 **탭별 건수**(전체 124 · 콘텐츠 80 · 파일 21 · 게시판 20 · 메뉴 3)를 함께 표시한다.
 무결과 검색어(`result_count = 0`) 리포트는 **사전을 보강할 단서**가 되므로 통계 화면에 반드시 포함.
 
+> **관리자 화면(`adm/*`)과 권한(Spring Security)은 추후 개발.**
+> 그 전까지 사전 관리는 SQL로 직접 수행하고, 색인 동기화는 스케줄러(매일 2회) 자동 실행에 맡긴다.
+> URL 설계·컨트롤러 구조는 위 표대로 확정해 두되 구현만 미룬다.
+
 ---
 
 ## 8. API 설계 요약
@@ -714,13 +735,13 @@ templates/
 
 | 단계 | 내용 | 산출물 |
 |---|---|---|
-| **1. 기반 구축** | 프로젝트 생성(com.gonet.search), Git 연동, Flyway 스키마(V1~V3), 엔티티/리포지토리, 레이아웃(layout/search) | 앱 기동 + 테이블·VIEW 생성 확인 |
+| **1. 기반 구축** | 프로젝트 생성(com.gonet.search), Git 연동, Flyway 스키마(V1~V4, 샘플 데이터 포함), 엔티티/리포지토리, 레이아웃(layout/search) | 앱 기동 + 테이블·VIEW·샘플 데이터 확인 |
 | **2. 분석·색인** | Nori 래퍼, 사용자 사전 로딩, IndexingService(해시 diff 동기화 + 스케줄), 샘플 데이터 색인 | 동기화 후 tn_search_index 채워짐 |
 | **3. 검색 코어** | 금지어 필터 → 동의어 확장 → tsquery → 통합 FTS 검색(타입 필터) + 로그 | `/result` 동작 |
 | **4. UI** | 검색 메인/결과(도메인 탭, HTMX 무한스크롤), 자동완성 | 사용자 화면 완성 |
-| **5. 어드민** | 사전 3종 CRUD + 리로드(캐시 evict 연동), 동기화·재색인 버튼, 통계 | 운영 도구 완성 |
-| **6. 캐시·관측성** | Caffeine 캐시 적용, Actuator/Prometheus 노출, 트레이스 로그 패턴, 커스텀 메트릭 | 캐시 히트율·p95 지연 확인 가능 |
-| **7. 마무리** | 인기검색어 MV 스케줄 갱신, 인덱스 튜닝, Grafana 대시보드, README, 배포 | v1.0 태그 |
+| **5. 캐시·관측성** | Caffeine 캐시 적용, Actuator/Prometheus 노출, 트레이스 로그 패턴, 커스텀 메트릭 | 캐시 히트율·p95 지연 확인 가능 |
+| **6. 마무리** | 인기검색어 MV 스케줄 갱신, 인덱스 튜닝, Grafana 대시보드, README, 배포 | v1.0 태그 |
+| *(추후)* 어드민·권한 | 사전 3종 CRUD + 리로드(캐시 evict 연동), 동기화·재색인 버튼, 통계, Spring Security 권한 | 운영 도구 완성 |
 
 각 단계는 독립적으로 커밋/푸시 가능하도록 수직 분할되어 있어, 중단 후 재개가 쉽다.
 
@@ -739,3 +760,4 @@ templates/
 9. **명명 규칙 고정** — 테이블: 일반 `tn_` / 로그 `log_` / (M)VIEW `vw_`. Controller: API `*ApiController` / 사용자 `*UsrController` / 관리자 `*AdmController`. 패키지 루트 `com.gonet.search`. 레이아웃 `templates/layout/search/`.
 10. **색인은 매일 2회 스케줄 동기화 + content_hash diff** — 실시간 색인 대신 예측 가능한 배치. md5 해시 비교로 변경분만 Nori 분석하므로 비용이 변경량에 비례. 즉시 반영은 어드민 수동 트리거로 보완.
 11. **색인 PK는 (doc_type, doc_id) 복합키** — 도메인별 id 충돌 없이 통합 색인. 검색 결과의 이동 경로는 색인에 저장된 `link_url` 사용.
+12. **관리자 화면·권한은 추후 개발** — v1.0은 사용자 검색 기능에 집중. 사전 관리는 당분간 SQL 직접 실행, 색인은 스케줄 자동 동기화로 운영. URL·컨트롤러 설계만 확정해 둠.
