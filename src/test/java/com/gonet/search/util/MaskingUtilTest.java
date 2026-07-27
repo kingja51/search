@@ -76,6 +76,22 @@ class MaskingUtilTest {
     }
 
     @Test
+    @DisplayName("이메일: 로컬파트가 2자 이하면 전체 마스킹 (앞자리 유지 시 원본 노출)")
+    void maskShortEmailLocalPart() {
+        assertThat(MaskingUtil.mask("ab@naver.com")).isEqualTo("**@naver.com");
+        assertThat(MaskingUtil.mask("a@test.co.kr")).isEqualTo("*@test.co.kr");
+    }
+
+    @Test
+    @DisplayName("외국인등록번호(뒷자리 5~8 시작)도 전체 마스킹")
+    void maskForeignerRegistrationNumber() {
+        assertThat(MaskingUtil.mask("등록번호 990101-5234567"))
+                .isEqualTo("등록번호 ******-*******");
+        assertThat(MaskingUtil.mask("9901018234567"))
+                .isEqualTo("******-*******");
+    }
+
+    @Test
     @DisplayName("혼합 문장: 여러 개인정보를 한 번에 마스킹")
     void maskMixedText() {
         String input = "홍길동(990101-1234567), 전화 010-1234-5678, 카드 1111-2222-3333-4444, mail hong@test.co.kr";

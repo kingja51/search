@@ -20,9 +20,10 @@ public final class MaskingUtil {
     /**
      * 주민등록번호: 990101-1234567 → ******-*******
      * 앞 6자리(=생년월일)까지 전체 마스킹 — 생년월일을 민감정보로 취급하는 정책과 일관성 유지.
+     * 뒷자리 첫 숫자 1~4=내국인, 5~8=외국인등록번호 — 둘 다 마스킹.
      */
     private static final Pattern RRN =
-            Pattern.compile("(?<!\\d)\\d{6}[-\\s]?[1-4]\\d{6}(?!\\d)");
+            Pattern.compile("(?<!\\d)\\d{6}[-\\s]?[1-8]\\d{6}(?!\\d)");
 
     /**
      * 생년월일: **라벨 문맥 기반** — "생년월일/생일/출생일" 등 라벨이 바로 앞에 있는 날짜만 마스킹.
@@ -45,9 +46,12 @@ public final class MaskingUtil {
     private static final Pattern MOBILE =
             Pattern.compile("(?<!\\d)(01[016789])[-\\s]?\\d{3,4}[-\\s]?(\\d{4})(?!\\d)");
 
-    /** 이메일: hong.gildong@example.com → ho****@example.com (로컬파트 앞 2자만 유지) */
+    /**
+     * 이메일: hong.gildong@example.com → ho****@example.com (로컬파트 앞 2자만 유지).
+     * 로컬파트가 2자 이하면 전체를 * 치환 (ab@naver.com → **@naver.com — 앞자리 유지 시 원본이 그대로 노출됨)
+     */
     private static final Pattern EMAIL =
-            Pattern.compile("([A-Za-z0-9._%+-]{1,2})[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})");
+            Pattern.compile("([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})");
 
     private MaskingUtil() {
     }
@@ -67,7 +71,11 @@ public final class MaskingUtil {
         masked = RRN.matcher(masked).replaceAll("******-*******");
         masked = CARD.matcher(masked).replaceAll("$1-****-****-$2");
         masked = MOBILE.matcher(masked).replaceAll("$1-****-$2");
-        masked = EMAIL.matcher(masked).replaceAll("$1****@$2");
+        masked = EMAIL.matcher(masked).replaceAll(mr -> {
+            String local = mr.group(1);
+            String head = local.length() <= 2 ? "*".repeat(local.length()) : local.substring(0, 2) + "****";
+            return head + "@" + mr.group(2);
+        });
         return masked;
     }
 }

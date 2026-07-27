@@ -843,7 +843,8 @@ WHERE NOT EXISTS (
   title/body를 마스킹한 뒤 summary·tokens를 생성하므로 ① 색인 DB에 개인정보 미저장,
   ② 개인정보 숫자로 검색 자체가 불가, ③ 요청마다 정규식을 돌리지 않아 검색 성능 무영향.
   색인을 거치지 않는 샘플 뷰어(원본 직접 출력)에는 표시 시점 마스킹을 보조 적용.
-  주민번호는 앞자리(=생년월일)까지 **전체 마스킹**(`******-*******`).
+  주민번호는 앞자리(=생년월일)까지 **전체 마스킹**(`******-*******`) — 외국인등록번호(뒷자리 5~8 시작) 포함.
+  이메일은 로컬파트 앞 2자만 유지하되, 로컬파트가 2자 이하면 전체 `*` 치환(`ab@naver.com → **@naver.com`).
   **생년월일은 라벨 문맥 기반** — "생년월일/생일/출생일" 라벨이 붙은 날짜만 마스킹(`생년월일: ****-**-**`),
   라벨 없는 일반 날짜(공고일·마감일 등)는 형태로 구분이 불가능하므로 건드리지 않음.
   ※ 마스킹 패턴 변경 시 전체 재색인 필요. 계좌번호는 형식 다양성으로 오탐 위험이 커 제외(필요 시 형식 확정 후 추가)
@@ -860,17 +861,21 @@ WHERE NOT EXISTS (
   - 수동 버튼: 최근 1개월(search.extract.manual-months)
   → 원본파일전체경로(vw_file_search.origin_path = tn_file.file_path)에서 본문 추출
   → 개인정보 마스킹(MaskingUtil, DB 반영 전 필수)
-  → **tn_file.extract_text UPDATE** (기존 값과 같으면 건너뜀 — updated_at 불변으로 매일 재추출 루프 방지)
-  → content_hash(md5 file_name|extract_text)가 자연히 바뀌므로 이어서 색인 동기화(diff) 자동 호출 — 즉시 검색 반영
+  → 반영 방식은 search.extract.update-origin 설정으로 선택 (기본 false):
+    - false(기본): tn_search_index(summary·tokens) 직접 UPDATE — 원본 테이블 불변, content_hash 유지.
+      ⚠️ 전체 재색인 시 추출 본문이 초기화되므로 재색인 후 [파일 추출] 재실행 필요 (어드민 경고 표시)
+    - true: tn_file.extract_text UPDATE(기존 값과 같으면 건너뜀 — updated_at 불변으로 재추출 루프 방지)
+      → content_hash(md5 file_name|extract_text)가 바뀌므로 색인 동기화(diff) 자동 연쇄 — 즉시 검색 반영
 ```
 
 - 실행: **매일 새벽 1시 스케줄**(search.extract.cron) + 어드민 [파일 추출] 버튼(수동)
 - 추출기: DOC/DOCX/XLS/XLSX/PPT/PPTX/PDF/TXT/CSV = **Apache Tika**(내부 POI·PDFBox) /
   HWP = **hwplib**, HWPX = **hwpxlib** (kr.dogfoot — 요청 참조된 rhwp는 Rust+WASM/npm이라 자바 미사용, 동일 역할 자바 라이브러리로 대체)
 - 파일 없음/읽기 불가 건은 건너뛰고 로그, 실패 건은 개별 격리(전체 배치 중단 없음)
-- 추출 결과를 **원본(tn_file.extract_text, 마스킹 완료본)에 저장**하므로 전체 재색인·diff 동기화 후에도
-  추출 본문이 유지되고, 파일 뷰어(/file/{id})에도 노출된다
-  (초기 구현의 tn_search_index 직접 UPDATE 방식은 원본 행 변경 시 추출 본문이 되돌아가는 문제로 대체)
+- **update-origin=true**는 추출 결과를 원본(tn_file.extract_text, 마스킹 완료본)에 저장하므로
+  전체 재색인·diff 동기화 후에도 추출 본문이 유지되고 파일 뷰어(/file/{id})에도 노출된다.
+  다만 검색엔진이 원본 테이블을 수정하게 되므로 **기본값은 false**(원본 불변) —
+  원본 도메인이 tn_file 갱신을 허용하는 환경에서만 true로 전환한다
 - **색인 작업 공유 락(IndexJobLock)**: 동기화·전체 재색인·파일 추출은 하나의 ReentrantLock을 tryLock으로 공유 —
   동시 실행 시 한쪽이 다른 쪽 반영분을 덮어쓰는 레이스와 버튼 이중 클릭 중복 실행을 방지.
   실행 중이면 어드민 화면에 "다른 색인 작업이 실행 중" 안내(스케줄 겹침은 건너뛰고 WARN 로그)

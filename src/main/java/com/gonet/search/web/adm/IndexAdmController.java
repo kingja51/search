@@ -41,6 +41,7 @@ public class IndexAdmController {
         model.addAttribute("total", searchIndexMapper.count(null));
         model.addAttribute("lastResult", indexingService.getLastResult());
         model.addAttribute("lastExtract", fileExtractService.getLastResult());
+        model.addAttribute("extractUpdateOrigin", fileExtractService.isUpdateOrigin());
         return "adm/index";
     }
 

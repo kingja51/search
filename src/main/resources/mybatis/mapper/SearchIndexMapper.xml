@@ -47,6 +47,18 @@
             updated_by        = 'system'
     </insert>
 
+    <!-- 파일 추출 결과 직접 반영 (update-origin=false 기본 경로) — summary/tokens는 호출 측에서 마스킹 완료된 값 -->
+    <update id="updateFileContent">
+        UPDATE tn_search_index
+        SET summary    = #{summary},
+            tokens     = #{tokens},
+            updated_at = now(),
+            updated_ip = #{ip},
+            updated_by = 'system'
+        WHERE doc_type = 'FILE'
+          AND doc_id   = #{docId}
+    </update>
+
     <delete id="deleteOrphans">
         DELETE FROM tn_search_index i
         WHERE NOT EXISTS (

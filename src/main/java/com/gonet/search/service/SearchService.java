@@ -113,9 +113,18 @@ public class SearchService {
                     exprs.add(expr);
                 }
             }
-            exprs.add(buildExpr(tokensByQuery.get(q), cond.getOp(), banned, synonyms, highlightTerms));
+            String mainExpr = buildExpr(tokensByQuery.get(q), cond.getOp(), banned, synonyms, highlightTerms);
+            if (mainExpr != null) {
+                exprs.add(mainExpr);
+            }
             return exprs.stream().map(e -> "(" + e + ")").collect(Collectors.joining(" & "));
         });
+        // 토큰이 전부 MASK·따옴표 제거 등으로 소거되면 검색식이 비어 to_tsquery가 실패한다 — 안내 후 종료
+        if (tsquery.isBlank()) {
+            stopQueryTimer(sample, docType, false);
+            logSearch(q, "", "", cond, 0, false, sessionId, clientIp, start);
+            return SearchResponse.empty(q, "검색 가능한 단어가 없습니다. 다른 검색어로 시도해 주세요.");
+        }
 
         // 4) 기간 계산 (dateFrom/dateTo가 period보다 우선)
         OffsetDateTime fromTs = resolveFromTs(cond);
@@ -188,16 +197,19 @@ public class SearchService {
             expanded.addAll(synonyms.getOrDefault(token, Set.of()));
             expanded.removeIf(banned::isMasked);
             highlightTerms.addAll(expanded);
-            groups.add(expanded.size() == 1
-                    ? quote(token)
-                    : "(" + expanded.stream().map(this::quote).collect(Collectors.joining(" | ")) + ")");
+            // 따옴표·역슬래시 제거 후 빈 토큰은 제외 — '' lexeme은 to_tsquery 오류
+            List<String> quoted = expanded.stream()
+                    .map(t -> t.replace("'", "").replace("\\", ""))
+                    .filter(t -> !t.isBlank())
+                    .map(t -> "'" + t + "'")
+                    .toList();
+            if (quoted.isEmpty()) {
+                continue;
+            }
+            groups.add(quoted.size() == 1 ? quoted.get(0)
+                    : "(" + String.join(" | ", quoted) + ")");
         }
-        return String.join(joiner, groups);
-    }
-
-    /** tsquery 인젝션 방지: 토큰을 따옴표로 감싸고 내부 따옴표 제거 */
-    private String quote(String token) {
-        return "'" + token.replace("'", "").replace("\\", "") + "'";
+        return groups.isEmpty() ? null : String.join(joiner, groups);
     }
 
     private OffsetDateTime resolveFromTs(SearchCondition cond) {

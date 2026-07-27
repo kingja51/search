@@ -72,6 +72,8 @@ search:
     cron: "0 0 1 * * *"          # 파일 텍스트 추출 (매일 새벽 1시)
     schedule-days: 3             # 스케줄 대상: 최근 N일 (매일 실행되므로 짧은 윈도우 + 겹침 여유)
     manual-months: 1             # 어드민 [파일 추출] 버튼 대상: 최근 N개월
+    update-origin: false         # 추출 본문 반영 방식 — false(기본): tn_search_index만 직접 갱신(원본 불변, 전체 재색인 시 초기화)
+                                 #                       true: tn_file.extract_text에 저장 → 색인 동기화 자동 연쇄(재색인에도 유지, 뷰어 노출)
     # 선언된 확장자만 추출 처리 (대소문자 무시)
     # DOC~CSV: Apache Tika(POI·PDFBox) / HWP·HWPX: hwplib·hwpxlib (rhwp는 Rust/WASM이라 자바 미지원 — 대체)
     extensions: DOC, DOCX, XLS, XLSX, PPT, PPTX, PDF, TXT, CSV, HWP, HWPX
