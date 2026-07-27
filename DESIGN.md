@@ -853,8 +853,9 @@ public void refreshPopularKeywords() {
 ```
 
 - `CONCURRENTLY` 갱신이므로 갱신 중에도 조회가 막히지 않음 (전제: `uq_vw_popular` 유니크 인덱스 — 존재)
-- 노출 흐름: 로그 적재(@Async) → MV 갱신(10분 주기) → `popularKeywords` 캐시(TTL 1분) → 화면. 최대 지연 약 11분
-- 집계 범위는 MV 정의(최근 7일, is_blocked=false 제외, TOP 100)가 결정 — 금지어 차단 검색은 자동 제외
+- **화면 위젯은 기간 탭(전체/실시간 6h/1일/이번주/이번달)별 로그 실시간 집계** — `findPopularSince(fromTs)`
+  + `popularKeywords` 캐시(기간별 키, TTL 1분). is_blocked=false 제외로 금지어 차단 검색은 집계에서 자동 제외
+- MV(최근 7일 TOP 100)는 배치 집계 자산으로 유지(통계·추후 어드민용) — 위젯 조회 경로에서는 미사용
 - 갱신 소요시간을 `keyword.popular.refresh` Timer로 기록, 실패 시 WARN 로그 (다음 주기에 자동 재시도)
 
 ### 4.6 감사(Audit) 공통 처리
