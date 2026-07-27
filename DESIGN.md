@@ -96,9 +96,9 @@ Elasticsearch 같은 별도 검색 서버 없이 **PostgreSQL 18의 Full-Text Se
 
 | 접두사 | 대상 | 예 |
 |---|---|---|
-| `tn_` | 일반 테이블 | `tn_content`, `tn_dic_word`, `tn_search_index` |
+| `tn_` | 일반 테이블 | `tn_content`, `tn_search_dic_word`, `tn_search_index` |
 | `log_` | 로그 테이블 | `log_search_keyword` |
-| `vw_` | VIEW / MATERIALIZED VIEW | `vw_content_search`, `vw_popular_keyword` |
+| `vw_` | VIEW / MATERIALIZED VIEW | `vw_content_search`, `vw_search_popular_keyword` |
 
 ### 3.1 테이블 목록
 
@@ -108,12 +108,12 @@ Elasticsearch 같은 별도 검색 서버 없이 **PostgreSQL 18의 Full-Text Se
 | 원본(샘플) | `tn_file` | 첨부파일 메타 + 본문 추출 텍스트 |
 | 원본(샘플) | `tn_bbs` | 게시판 게시글 |
 | 원본(샘플) | `tn_menu` | 사이트 메뉴 |
-| 사전 | `tn_dic_word` | 단어사전 (Nori 사용자 사전) |
-| 사전 | `tn_dic_synonym` | 동의어사전 (그룹 방식) |
-| 사전 | `tn_dic_banned` | 금지어사전 |
+| 사전 | `tn_search_dic_word` | 단어사전 (Nori 사용자 사전) |
+| 사전 | `tn_search_dic_synonym` | 동의어사전 (그룹 방식) |
+| 사전 | `tn_search_dic_banned` | 금지어사전 |
 | 색인 | `tn_search_index` | 통합 검색 색인 (tsvector + content_hash) |
 | VIEW | `vw_content_search` / `vw_file_search` / `vw_bbs_search` / `vw_menu_search` | 도메인별 색인 소스 정의 |
-| MV | `vw_popular_keyword` | 인기 검색어 집계 (7일) |
+| MV | `vw_search_popular_keyword` | 인기 검색어 집계 (7일) |
 | 로그 | `log_search_keyword` | 검색 키워드 로그 |
 
 ### 3.2 ERD 개요
@@ -132,18 +132,18 @@ erDiagram
         varchar content_hash
         tsvector search_vec
     }
-    tn_dic_word {
+    tn_search_dic_word {
         bigint id PK
         varchar word
         varchar pos_tag
         boolean enabled
     }
-    tn_dic_synonym {
+    tn_search_dic_synonym {
         bigint id PK
         bigint group_id
         varchar word
     }
-    tn_dic_banned {
+    tn_search_dic_banned {
         bigint id PK
         varchar word
         varchar block_type
@@ -166,7 +166,7 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;   -- 자동완성/유사검색용
 -- ─────────────────────────────────────────────
 -- 단어사전 (Nori 사용자 사전: 신조어·고유명사·복합명사 분해)
 -- ─────────────────────────────────────────────
-CREATE TABLE tn_dic_word (
+CREATE TABLE tn_search_dic_word (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     word        VARCHAR(100) NOT NULL,          -- 예: '아이폰15'
     segments    VARCHAR(200),                   -- 복합명사 분해형. 예: '아이폰 15' (NULL이면 단일어)
@@ -181,7 +181,7 @@ CREATE TABLE tn_dic_word (
 -- ─────────────────────────────────────────────
 -- 동의어사전 (같은 group_id = 서로 동의어)
 -- ─────────────────────────────────────────────
-CREATE TABLE tn_dic_synonym (
+CREATE TABLE tn_search_dic_synonym (
     id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     group_id          BIGINT       NOT NULL,
     word              VARCHAR(100) NOT NULL,    -- 예: 그룹1 = {휴대폰, 핸드폰, 스마트폰}
@@ -190,12 +190,12 @@ CREATE TABLE tn_dic_synonym (
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
     CONSTRAINT uq_dic_synonym UNIQUE (group_id, word)
 );
-CREATE INDEX idx_dic_synonym_word ON tn_dic_synonym (word) WHERE enabled;
+CREATE INDEX idx_dic_synonym_word ON tn_search_dic_synonym (word) WHERE enabled;
 
 -- ─────────────────────────────────────────────
 -- 금지어사전
 -- ─────────────────────────────────────────────
-CREATE TABLE tn_dic_banned (
+CREATE TABLE tn_search_dic_banned (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     word        VARCHAR(100) NOT NULL,
     block_type  VARCHAR(20)  NOT NULL DEFAULT 'BLOCK',  -- BLOCK(검색차단) / MASK(결과숨김)
@@ -362,7 +362,7 @@ CREATE INDEX idx_search_trgm ON tn_search_index USING GIN (title gin_trgm_ops); 
 CREATE INDEX idx_search_type ON tn_search_index (doc_type);                      -- 탭 필터용
 
 -- ── 인기 검색어 집계 MV (로그 기반, 주기 갱신) ──
-CREATE MATERIALIZED VIEW vw_popular_keyword AS
+CREATE MATERIALIZED VIEW vw_search_popular_keyword AS
 SELECT keyword,
        count(*)         AS search_count,
        max(searched_at) AS last_searched_at
@@ -372,8 +372,8 @@ WHERE searched_at >= now() - INTERVAL '7 days'
 GROUP BY keyword
 ORDER BY search_count DESC
 LIMIT 100;
-CREATE UNIQUE INDEX uq_vw_popular ON vw_popular_keyword (keyword);
--- 갱신: REFRESH MATERIALIZED VIEW CONCURRENTLY vw_popular_keyword;
+CREATE UNIQUE INDEX uq_vw_popular ON vw_search_popular_keyword (keyword);
+-- 갱신: REFRESH MATERIALIZED VIEW CONCURRENTLY vw_search_popular_keyword;
 ```
 
 > **왜 tsvector를 `simple` 설정으로 쓰는가**: 형태소 분석을 Nori(자바)가 이미 끝냈으므로
@@ -401,7 +401,7 @@ com.gonet.search
 │   └─ WebConfig.java
 ├─ analyzer/
 │   ├─ KoreanAnalyzer.java          # Nori 래퍼: 문자열 → 토큰 리스트
-│   └─ UserDictionaryLoader.java    # tn_dic_word → Nori UserDictionary 변환·리로드
+│   └─ UserDictionaryLoader.java    # tn_search_dic_word → Nori UserDictionary 변환·리로드
 ├─ domain/                          # JPA 엔티티
 │   ├─ Content.java / File.java / Bbs.java / Menu.java
 │   ├─ DicWord.java / DicSynonym.java / DicBanned.java
@@ -430,7 +430,7 @@ com.gonet.search
 ### 4.2 Nori 분석기 구성
 
 ```java
-// tn_dic_word 테이블 → Nori UserDictionary 포맷 변환 후 Analyzer 생성
+// tn_search_dic_word 테이블 → Nori UserDictionary 포맷 변환 후 Analyzer 생성
 // 포맷: "아이폰15" 또는 복합명사 "삼성전자 삼성 전자"
 UserDictionary userDict = UserDictionary.open(new StringReader(loadFromDb()));
 Analyzer analyzer = new KoreanAnalyzer(
@@ -731,7 +731,7 @@ templates/
 1. **검색엔진 서버 없이 PostgreSQL FTS 채택** — 1인 운영 부담 최소화. 데이터 수백만 건 규모까지 GIN 인덱스로 충분.
 2. **Nori는 앱 내장 라이브러리** — Elasticsearch 없이 Lucene 분석기만 사용. 사전은 DB에서 로드해 무재기동 리로드.
 3. **tsvector는 `simple` 설정** — 형태소 분석 품질을 전적으로 앱(Nori + 사전)이 통제.
-4. **검색 테이블은 VIEW(소스 정의) + 색인 테이블(물리 저장) 조합** — 도메인별 `vw_*_search` 4종(content/file/bbs/menu)을 공통 컬럼 형태로 통일하고 `vw_search_source`(UNION ALL)로 묶어, 앱 분석 후 통합 `tn_search_index`에 저장. 인기검색어는 MATERIALIZED VIEW(`vw_popular_keyword`).
+4. **검색 테이블은 VIEW(소스 정의) + 색인 테이블(물리 저장) 조합** — 도메인별 `vw_*_search` 4종(content/file/bbs/menu)을 공통 컬럼 형태로 통일하고 `vw_search_source`(UNION ALL)로 묶어, 앱 분석 후 통합 `tn_search_index`에 저장. 인기검색어는 MATERIALIZED VIEW(`vw_search_popular_keyword`).
 5. **동의어는 검색 시점(query-time) 확장** — 색인 시점 확장 대비 사전 수정 시 재색인 불필요.
 6. **로그는 @Async 비동기 기록** — 검색 응답 속도에 영향 없음. trace 컨텍스트는 TaskDecorator로 전파.
 7. **사전은 Caffeine 캐시로 서빙** — 검색 트래픽이 사전 테이블을 직접 때리지 않음. 변경 시 커밋 후(evict → 리로드) 순서로 일관성 보장.
