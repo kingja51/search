@@ -529,6 +529,9 @@ Analyzer analyzer = new KoreanAnalyzer(
 | `category` | 탭별 카테고리 값 | 없음(전체) | 탭 선택 시에만 노출 |
 | `sort` | `accuracy`(정확도) / `latest`(최신순) | accuracy | 정확도=ts_rank, 최신순=source_updated_at |
 | `period` | `6h`(실시간) / `1d`(1일) / `week`(이번주) / `month`(이번달) / `all` | all | 원본 수정일 기준 기간 필터 |
+| `op` | `AND` / `OR` | AND | 다중 검색어의 결합 방식 |
+| `dateFrom` / `dateTo` | `yyyy-MM-dd` | 없음 | **상세검색**: 시작일~종료일 직접 지정 (지정 시 period 무시) |
+| `qPrev` | 이전 검색어 (반복 가능) | 없음 | **상세검색**: 결과 내 재검색 — 이전 검색어들과 AND 결합 |
 
 기간 필터의 기준 시각 계산 (모두 `source_updated_at >= :fromTs`):
 
@@ -545,7 +548,8 @@ Analyzer analyzer = new KoreanAnalyzer(
 2. 금지어 검사        bannedWords 캐시 조회 → BLOCK 포함 시 차단 응답 + is_blocked=true 로그
 3. 형태소 분석        Nori → [휴대폰, 케이스]                       ← span: search.analyze
 4. 동의어 확장        synonyms 캐시 조회 → (휴대폰 | 핸드폰 | 스마트폰)  ← span: search.expand
-5. tsquery 생성       (휴대폰 | 핸드폰 | 스마트폰) & 케이스
+5. tsquery 생성       op=AND: (휴대폰|핸드폰|스마트폰) & 케이스 · op=OR: (…) | 케이스
+                      qPrev 있으면 이전 검색식과 & 결합 (결과 내 재검색)
 6. FTS 실행           tn_search_index에서 ts_rank 정렬 + 페이징        ← span: search.query
 7. 로그 기록          @Async 비동기 저장 (traceId 함께 기록, 응답 지연 없음)
 ```
@@ -562,7 +566,8 @@ FROM tn_search_index,
 WHERE search_vec @@ query
   AND (:docType  IS NULL OR doc_type = :docType)          -- 탭 (ALL이면 NULL)
   AND (:category IS NULL OR category = :category)          -- 탭 내 카테고리
-  AND (:fromTs   IS NULL OR source_updated_at >= :fromTs)  -- 기간 (all이면 NULL)
+  AND (:fromTs   IS NULL OR source_updated_at >= :fromTs)  -- 기간·상세검색 시작일
+  AND (:toTs     IS NULL OR source_updated_at <  :toTs)    -- 상세검색 종료일 (+1일 미만)
 ORDER BY
   CASE WHEN :sort = 'latest'   THEN NULL END,              -- 최신순: 아래 두 번째 키 사용
   CASE WHEN :sort = 'latest'   THEN source_updated_at END DESC,
@@ -571,6 +576,32 @@ LIMIT :size OFFSET :offset;
 ```
 
 정렬은 실제 구현 시 분기된 두 개의 쿼리(정확도용/최신순용)로 나누는 것을 권장 — CASE 정렬은 인덱스 활용이 어려우므로, 최신순 쿼리는 `ORDER BY source_updated_at DESC`로 고정해 `idx_search_updated`를 태운다.
+
+**tsquery 조합 규칙 (AND/OR + 결과 내 재검색)**
+
+```
+검색어 1개의 검색식      = 동의어 확장 그룹        예: (휴대폰|핸드폰|스마트폰)
+다중 검색어 (op=AND)     = 그룹1 & 그룹2           예: (휴대폰|핸드폰|스마트폰) & 케이스
+다중 검색어 (op=OR)      = 그룹1 | 그룹2           예: (휴대폰|핸드폰|스마트폰) | 케이스
+결과 내 재검색 (qPrev)   = (이전 검색식) & (현재 검색식)   ← qPrev끼리도 & 로 중첩
+```
+
+- 동의어 확장은 **항상 그룹 내 OR** — op는 그룹과 그룹 사이의 결합에만 적용
+- 결과 내 재검색은 op와 무관하게 **항상 AND 결합** (결과를 좁히는 기능이므로)
+- qPrev도 매 요청마다 금지어 검사·형태소 분석을 다시 거친다 (URL 조작으로 금지어 우회 방지)
+
+**상세검색 (검색 결과 화면 내 패널)**
+
+검색 결과 상단의 "상세검색" 토글로 패널을 열고 닫는다. 패널 구성:
+
+| 항목 | 동작 |
+|---|---|
+| 시작일 ~ 종료일 | `dateFrom`/`dateTo` (date input 2개). 지정 시 period 버튼 무시. `toTs = dateTo + 1일` 미만 조건 |
+| 결과 내 재검색 | 현재 검색어를 `qPrev`로 밀어 넣고 새 키워드로 재검색. 적용된 검색어들은 **칩(chip)** 으로 표시, X 클릭 시 해당 조건만 제거 후 재검색 |
+| AND / OR | 다중 검색어 결합 방식 라디오 (기본 AND) |
+
+모든 조건은 URL 쿼리스트링에 담겨 (`/result?q=케이스&qPrev=휴대폰&dateFrom=2026-07-01&dateTo=2026-07-27&op=AND`)
+북마크·공유·뒤로가기가 자연스럽게 동작한다. HTMX는 이 URL을 `hx-get`으로 호출해 결과 영역만 교체.
 
 **내 검색어 (IP 기준)** — `log_search_keyword.client_ip`로 요청자의 최근 검색어를 되돌려준다:
 
@@ -633,7 +664,24 @@ WHERE NOT EXISTS (
   `tn_search_index`의 content_hash가 갱신되므로 이후 스케줄 동기화와 자연스럽게 이어짐
 - 스케줄 사이에 즉시 반영이 필요하면 어드민의 "지금 동기화" 버튼으로 수동 트리거
 
-### 4.5 공통 설정 (application.yml)
+### 4.5 인기 검색어 자동 생성 (KeywordLogService)
+
+인기 검색어는 `log_search_keyword`를 집계한 MATERIALIZED VIEW(`vw_search_popular_keyword`)를
+**스케줄러가 10분마다 자동 갱신**하여 생성한다. 수동 개입 없이 로그 → 집계 → 노출이 자동으로 순환한다.
+
+```java
+@Scheduled(cron = "${search.keyword.popular-refresh-cron}")   // 기본: 10분마다
+public void refreshPopularKeywords() {
+    jdbcTemplate.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY vw_search_popular_keyword");
+}
+```
+
+- `CONCURRENTLY` 갱신이므로 갱신 중에도 조회가 막히지 않음 (전제: `uq_vw_popular` 유니크 인덱스 — 이미 존재)
+- 노출 흐름: 로그 적재(@Async) → MV 갱신(10분 주기) → `popularKeywords` 캐시(TTL 1분) → 화면. 최대 지연 약 11분
+- 집계 범위는 MV 정의(최근 7일, is_blocked=false 제외, TOP 100)가 결정 — 금지어로 차단된 검색은 자동 제외됨
+- 갱신 소요시간을 `keyword.popular.refresh` Timer로 기록, 실패 시 WARN 로그 (다음 주기에 자동 재시도)
+
+### 4.6 공통 설정 (application.yml)
 
 ```yaml
 server:
@@ -654,6 +702,8 @@ search:
     chunk-size: 500
   analyzer:
     keep-pos: NNG, NNP, SL, SN   # 색인·검색 대상 품사 (변경 시 전체 재색인 필요)
+  keyword:
+    popular-refresh-cron: "0 */10 * * * *"  # 인기 검색어 MV 자동 갱신 (10분마다)
 ```
 
 - context-path가 `/search`이므로 실제 접근 URL은 `http://host/search/`, `http://host/search/adm/...`
@@ -765,6 +815,7 @@ management:
 | `search.blocked` | Counter | | 금지어 차단 횟수 |
 | `search.noresult` | Counter | | 무결과 검색 횟수 (사전 보강 신호) |
 | `index.sync` | Timer | `mode`=diff\|full | 색인 동기화/전체 재색인 소요시간 |
+| `keyword.popular.refresh` | Timer | | 인기 검색어 MV 자동 갱신 소요시간 |
 | `index.documents` | Gauge | `doc_type` | 색인 문서 수 |
 | `cache.gets` 등 | (자동) | `cache`, `result` | Caffeine 히트율 |
 | `hikaricp.*`, `jvm.*`, `http.server.requests` | (자동) | | DB 커넥션풀, JVM, HTTP 전반 |
@@ -802,6 +853,7 @@ templates/
 |---|---|---|---|
 | 검색 메인 | `GET /` | SearchUsrController | 검색창 + 인기검색어 + **추천 검색어**(관리자 등록, display_order 순) |
 | 검색 결과 | `GET /result?q=&type=&category=&sort=&period=&page=` | SearchUsrController | 도메인 탭(전체/콘텐츠/파일/게시판/메뉴) + 탭별 **카테고리 필터** + **정렬 토글**(정확도/최신순) + **기간 필터**(실시간 6h/1일/이번주/이번달/전체), `hx-get` 부분 교체, 무한스크롤(`hx-trigger="revealed"`) |
+| 상세검색 패널 | (검색 결과 화면 내 토글) | SearchUsrController | 시작일~종료일(dateFrom/dateTo), **결과 내 재검색**(qPrev 칩 + 제거), AND/OR 라디오 — 조건은 전부 URL 쿼리스트링 유지 |
 | 자동완성 | `GET /api/autocomplete?q=` | AutocompleteApiController | `hx-trigger="keyup changed delay:300ms"` → 드롭다운 fragment |
 | 인기 검색어 | `GET /api/keyword/popular` | KeywordApiController | 메인 로드 시 1회 |
 | 추천 검색어 | `GET /api/keyword/recommend` | KeywordApiController | 메인·결과 상단 노출, 클릭 시 검색 |
@@ -825,7 +877,7 @@ templates/
 
 | Method | URL | Controller | 설명 |
 |---|---|---|---|
-| GET | `/` , `/result?q=&type=&category=&sort=&period=&page=&size=` | SearchUsrController | 검색 화면·결과 (HTML fragment 응답) |
+| GET | `/` , `/result?q=&type=&category=&sort=&period=&op=&dateFrom=&dateTo=&qPrev=&page=&size=` | SearchUsrController | 검색 화면·결과 (HTML fragment 응답), 상세검색 조건 포함 |
 | GET | `/api/autocomplete?q=` | AutocompleteApiController | 자동완성 (pg_trgm 유사도) |
 | GET | `/api/keyword/popular` | KeywordApiController | 인기 검색어 TOP 10 |
 | GET | `/api/keyword/recommend` | KeywordApiController | 추천 검색어 (관리자 등록, 노출기간·순서 적용) |
@@ -874,3 +926,6 @@ templates/
 14. **추천 검색어는 관리자 등록 테이블로 분리** — 로그 기반 인기 검색어와 별개로 `tn_search_recommend_keyword`에서 노출기간(start/end_date)·순서(display_order)로 통제. 어드민 개발 전까지 SQL로 관리.
 15. **정렬·기간은 `source_updated_at` 기준** — 최신순 정렬과 기간 필터(실시간 6h/1일/이번주/이번달)는 색인에 저장한 원본 수정일로 판정. 전용 인덱스(idx_search_updated)로 최신순 쿼리를 분리 구현.
 16. **내 검색어는 요청자 식별을 서버가 수행** — session_id(쿠키) 우선 + client_ip 폴백. IP를 파라미터로 받는 API는 두지 않아 타인 검색어 조회를 차단.
+17. **인기 검색어는 완전 자동 생성** — 로그 적재(@Async) → MV 10분 주기 CONCURRENTLY 갱신 → 캐시(1분) → 화면. 수동 개입 없음, 금지어 차단 검색은 집계에서 자동 제외.
+18. **검색식 조합 규칙 고정** — 동의어 확장은 항상 그룹 내 OR, op(AND/OR)는 검색어 그룹 간 결합에만 적용, 결과 내 재검색(qPrev)은 항상 AND. qPrev도 금지어 검사·형태소 분석을 다시 거쳐 URL 조작 우회를 차단.
+19. **상세검색 조건은 URL 쿼리스트링으로 유지** — dateFrom/dateTo(기간 직접 지정, period보다 우선), qPrev(결과 내 재검색 칩). 북마크·공유·뒤로가기 호환.
