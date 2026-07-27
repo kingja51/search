@@ -1,4 +1,5 @@
 server:
+  port: ${SERVER_PORT:8080}
   servlet:
     context-path: /search        # 모든 URL은 /search 하위로 서빙
   forward-headers-strategy: framework   # X-Forwarded-For 처리 (클라이언트 IP 추출)
@@ -7,7 +8,13 @@ spring:
   application:
     name: search
   profiles:
-    active: local                # DB 접속 정보는 application-local.yml (git 미추적)
+    active: local                # 추가 오버라이드는 application-local.yml (git 미추적, 없어도 무방)
+  datasource:                    # 접속 정보는 환경 변수(.env.example 참조) 또는 local 프로파일로 주입
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/search?currentSchema=search,public}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+  flyway:
+    default-schema: ${DB_SCHEMA:search}   # search 스키마에 모든 객체 생성 (스키마 없으면 자동 생성)
   task:
     scheduling:
       pool:

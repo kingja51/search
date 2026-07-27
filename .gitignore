@@ -2,6 +2,7 @@
 .claude/settings.local.json
 
 # Local config (DB 접속 정보)
+.env
 application-local.yml
 src/main/resources/application-local.yml
 

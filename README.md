@@ -32,8 +32,14 @@ Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreS
 ## 실행 (로컬)
 
 1. PostgreSQL 18 기동 후 `search` DB 생성 (`CREATE DATABASE search;`)
-2. `src/main/resources/application-local.yml.example`을 `application-local.yml`로 복사해 DB 접속 정보 수정
-3. 실행: `mvn spring-boot:run` → http://localhost:8080/search/ (Flyway가 V1~V4 자동 적용)
+2. 접속 정보 설정 (택1)
+   - `.env.example` → `.env` 복사 후 수정하고 환경 변수로 주입 (파일 내 안내 참조)
+   - `src/main/resources/application-local.yml.example` → `application-local.yml` 복사 후 수정
+3. 실행: `mvn spring-boot:run` → http://localhost:8080/search/
+   (Flyway가 **search 스키마**를 만들고 V1~V4를 자동 적용, 기동 직후 샘플 데이터 색인)
+
+앱 없이 DB만 구성하려면: [db/search_full_setup.sql](db/search_full_setup.sql)
+(스키마 + 테이블/VIEW + 샘플 INSERT 통합 정리본 — Flyway로 관리할 DB에는 실행 금지)
 
 ## 상태
 

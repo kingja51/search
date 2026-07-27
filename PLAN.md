@@ -92,5 +92,6 @@
 ## 환경 메모
 
 - JDK 21: `C:\Program Files\Java\jdk-21` (기본 java는 1.8 → `JAVA_HOME` 지정 필요)
-- Maven 3.9.16 · Docker 없음 · **PostgreSQL 18 로컬 미설치 (5432 닫힘)** ← 설치 필요
+- Maven 3.9.16 · Docker 없음
+- **PostgreSQL 18 설치됨** (`C:\Program Files\PostgreSQL\18`, 5432 리스닝) — postgres 계정 비밀번호는 로컬 설정(.env/application-local.yml)에 기재 필요. 앱 객체는 **search 스키마** 사용(Flyway default-schema)
 - 빌드: `mvn -q -DskipTests compile` · 테스트: `mvn test` · 실행: `mvn spring-boot:run`
