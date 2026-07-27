@@ -9,6 +9,10 @@
 <main layout:fragment="content">
     <h1 class="text-lg font-bold mb-4">색인 관리</h1>
 
+    <!-- 색인 작업 락 안내 (IndexJobLock 획득 실패 시) -->
+    <div th:if="${message}" th:text="${message}"
+         class="mb-4 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[13px]"></div>
+
     <!-- 색인 현황 -->
     <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
         <div class="bg-white border border-gray-200 rounded-xl p-4">
@@ -56,14 +60,14 @@
             </button>
         </form>
         <form th:action="@{/adm/index/rebuild}" method="post"
-              onsubmit="return confirm('전체 재색인을 실행합니다. 문서 수가 많으면 시간이 걸릴 수 있습니다.\n※ 파일 추출로 반영된 본문은 초기화되므로 재색인 후 [파일 추출]을 다시 실행하세요. 계속하시겠습니까?');">
+              onsubmit="return confirm('전체 재색인을 실행합니다. 문서 수가 많으면 시간이 걸릴 수 있습니다. 계속하시겠습니까?');">
             <button type="submit"
                     class="px-5 py-2.5 rounded-lg bg-gray-800 text-white text-[14px] cursor-pointer hover:bg-gray-700">
                 전체 재색인 (전량 재분석)
             </button>
         </form>
         <form th:action="@{/adm/index/extract}" method="post"
-              onsubmit="return confirm('최근 1개월 파일의 본문을 원본 경로에서 추출해 색인에 반영합니다. 파일 수에 따라 시간이 걸릴 수 있습니다. 계속하시겠습니까?');">
+              onsubmit="return confirm('최근 1개월 파일의 본문을 원본 경로에서 추출해 반영하고, 이어서 색인 동기화를 실행합니다. 파일 수에 따라 시간이 걸릴 수 있습니다. 계속하시겠습니까?');">
             <button type="submit"
                     class="px-5 py-2.5 rounded-lg bg-emerald-600 text-white text-[14px] cursor-pointer hover:bg-emerald-500">
                 파일 추출 (최근 1개월)
@@ -76,7 +80,8 @@
         추출 본문은 <span class="font-semibold">개인정보 마스킹 후</span> 색인에 반영됩니다.
         새벽 스케줄은 매일 실행되므로 <span class="font-semibold">최근 3일</span>만 비교·추출하고,
         수동 버튼은 <span class="font-semibold">최근 1개월</span>을 처리합니다.
-        <span class="text-red-500">전체 재색인 시 추출 본문이 초기화되므로 재색인 후 파일 추출을 다시 실행하세요.</span>
+        추출 본문은 원본(tn_file.extract_text)에 저장되어 <span class="font-semibold">재색인 후에도 유지</span>되며,
+        추출 완료 시 색인 동기화가 자동으로 이어집니다. 세 작업은 동시에 실행되지 않습니다(공유 락).
     </p>
 </main>
 </body>

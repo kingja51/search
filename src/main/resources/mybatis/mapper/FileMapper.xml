@@ -11,9 +11,9 @@
         WHERE id = #{id}
     </select>
 
-    <!-- 텍스트 추출 대상: 최근 N개월 + 선언 확장자만 (파일 텍스트 추출 배치) -->
+    <!-- 텍스트 추출 대상: 최근 파일 + 선언 확장자만 (파일 텍스트 추출 배치). extract_text는 변경 비교용 -->
     <select id="findExtractTargets" resultType="File">
-        SELECT id, file_name, file_ext, file_path
+        SELECT id, file_name, file_ext, file_path, extract_text
         FROM tn_file
         WHERE status = 'ACTIVE'
           AND file_path IS NOT NULL
@@ -24,5 +24,15 @@
           </foreach>
         ORDER BY id
     </select>
+
+    <!-- 추출 본문 반영 — 감사 컬럼(updated_*)은 AuditInterceptor가 엔터티에 주입(system/서버IP) -->
+    <update id="updateExtractText" parameterType="File">
+        UPDATE tn_file
+        SET extract_text = #{extractText},
+            updated_at   = #{updatedAt},
+            updated_ip   = #{updatedIp},
+            updated_by   = #{updatedBy}
+        WHERE id = #{id}
+    </update>
 
 </mapper>

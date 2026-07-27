@@ -859,16 +859,21 @@ WHERE NOT EXISTS (
   - 스케줄(매일 01시): 최근 3일(search.extract.schedule-days) — 매일 실행되므로 짧은 윈도우 + 겹침 여유
   - 수동 버튼: 최근 1개월(search.extract.manual-months)
   → 원본파일전체경로(vw_file_search.origin_path = tn_file.file_path)에서 본문 추출
-  → 개인정보 마스킹(MaskingUtil, DB 반영 전 필수) → Nori 분석
-  → tn_search_index(summary·tokens) UPDATE (content_hash는 유지 — diff 동기화가 덮어쓰지 않음)
+  → 개인정보 마스킹(MaskingUtil, DB 반영 전 필수)
+  → **tn_file.extract_text UPDATE** (기존 값과 같으면 건너뜀 — updated_at 불변으로 매일 재추출 루프 방지)
+  → content_hash(md5 file_name|extract_text)가 자연히 바뀌므로 이어서 색인 동기화(diff) 자동 호출 — 즉시 검색 반영
 ```
 
 - 실행: **매일 새벽 1시 스케줄**(search.extract.cron) + 어드민 [파일 추출] 버튼(수동)
 - 추출기: DOC/DOCX/XLS/XLSX/PPT/PPTX/PDF/TXT/CSV = **Apache Tika**(내부 POI·PDFBox) /
   HWP = **hwplib**, HWPX = **hwpxlib** (kr.dogfoot — 요청 참조된 rhwp는 Rust+WASM/npm이라 자바 미사용, 동일 역할 자바 라이브러리로 대체)
-- 파일 없음/읽기 불가·색인 미존재 건은 건너뛰고 로그, 실패 건은 개별 격리(전체 배치 중단 없음)
-- ⚠️ **전체 재색인은 vw_search_source(extract_text) 기준으로 색인을 다시 만들므로 추출 반영 내용이 초기화됨**
-  → 재색인 후 [파일 추출]을 다시 실행할 것 (어드민 화면 경고 표시)
+- 파일 없음/읽기 불가 건은 건너뛰고 로그, 실패 건은 개별 격리(전체 배치 중단 없음)
+- 추출 결과를 **원본(tn_file.extract_text, 마스킹 완료본)에 저장**하므로 전체 재색인·diff 동기화 후에도
+  추출 본문이 유지되고, 파일 뷰어(/file/{id})에도 노출된다
+  (초기 구현의 tn_search_index 직접 UPDATE 방식은 원본 행 변경 시 추출 본문이 되돌아가는 문제로 대체)
+- **색인 작업 공유 락(IndexJobLock)**: 동기화·전체 재색인·파일 추출은 하나의 ReentrantLock을 tryLock으로 공유 —
+  동시 실행 시 한쪽이 다른 쪽 반영분을 덮어쓰는 레이스와 버튼 이중 클릭 중복 실행을 방지.
+  실행 중이면 어드민 화면에 "다른 색인 작업이 실행 중" 안내(스케줄 겹침은 건너뛰고 WARN 로그)
 
 ### 4.5 인기 검색어 자동 생성 (KeywordLogService)
 

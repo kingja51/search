@@ -20,10 +20,4 @@ public interface SearchIndexMapper {
 
     /** VIEW에서 사라진 문서(status=DELETED 등) 색인 제거 (DESIGN.md 4.4 - 3단계) */
     int deleteOrphans();
-
-    /** 파일 텍스트 추출 결과를 색인에 반영 (summary·tokens 갱신 — 마스킹 완료본) */
-    int updateFileContent(@Param("docId") Long docId,
-                          @Param("summary") String summary,
-                          @Param("tokens") String tokens,
-                          @Param("ip") String ip);
 }

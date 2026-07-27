@@ -32,6 +32,7 @@ public class IndexingService {
     private final SearchIndexMapper searchIndexMapper;
     private final KoreanAnalyzer koreanAnalyzer;
     private final MeterRegistry meterRegistry;
+    private final IndexJobLock jobLock;
 
     @Value("${search.index.chunk-size:500}")
     private int chunkSize;
@@ -60,30 +61,46 @@ public class IndexingService {
         syncSearchIndex();
     }
 
-    /** 해시 diff 동기화: 신규·변경 upsert + 삭제 반영 */
-    public synchronized SyncResult syncSearchIndex() {
-        long start = System.currentTimeMillis();
-        List<SearchSource> changed = searchSourceMapper.findChanged();
-        int upserted = upsertInChunks(changed);
-        int deleted = searchIndexMapper.deleteOrphans();
-        long elapsed = System.currentTimeMillis() - start;
-        recordSyncTimer("diff", elapsed);
-        log.info("색인 동기화 완료(diff): 신규·변경 {}건, 삭제 {}건, {}ms", upserted, deleted, elapsed);
-        lastResult = new SyncResult("diff", upserted, deleted, elapsed);
-        return lastResult;
+    /** 해시 diff 동기화: 신규·변경 upsert + 삭제 반영. 다른 색인 작업 실행 중이면 null(건너뜀). */
+    public SyncResult syncSearchIndex() {
+        if (!jobLock.tryLock()) {
+            log.warn("다른 색인 작업이 실행 중 — 동기화 건너뜀");
+            return null;
+        }
+        try {
+            long start = System.currentTimeMillis();
+            List<SearchSource> changed = searchSourceMapper.findChanged();
+            int upserted = upsertInChunks(changed);
+            int deleted = searchIndexMapper.deleteOrphans();
+            long elapsed = System.currentTimeMillis() - start;
+            recordSyncTimer("diff", elapsed);
+            log.info("색인 동기화 완료(diff): 신규·변경 {}건, 삭제 {}건, {}ms", upserted, deleted, elapsed);
+            lastResult = new SyncResult("diff", upserted, deleted, elapsed);
+            return lastResult;
+        } finally {
+            jobLock.unlock();
+        }
     }
 
-    /** 전체 재색인: 해시 비교 없이 전량 재분석 — 사전·품사 설정 변경 후 사용 */
-    public synchronized SyncResult rebuildAll() {
-        long start = System.currentTimeMillis();
-        List<SearchSource> all = searchSourceMapper.findAll();
-        int upserted = upsertInChunks(all);
-        int deleted = searchIndexMapper.deleteOrphans();
-        long elapsed = System.currentTimeMillis() - start;
-        recordSyncTimer("full", elapsed);
-        log.info("전체 재색인 완료(full): {}건, 삭제 {}건, {}ms", upserted, deleted, elapsed);
-        lastResult = new SyncResult("full", upserted, deleted, elapsed);
-        return lastResult;
+    /** 전체 재색인: 해시 비교 없이 전량 재분석 — 사전·품사 설정 변경 후 사용. 실행 중이면 null. */
+    public SyncResult rebuildAll() {
+        if (!jobLock.tryLock()) {
+            log.warn("다른 색인 작업이 실행 중 — 전체 재색인 건너뜀");
+            return null;
+        }
+        try {
+            long start = System.currentTimeMillis();
+            List<SearchSource> all = searchSourceMapper.findAll();
+            int upserted = upsertInChunks(all);
+            int deleted = searchIndexMapper.deleteOrphans();
+            long elapsed = System.currentTimeMillis() - start;
+            recordSyncTimer("full", elapsed);
+            log.info("전체 재색인 완료(full): {}건, 삭제 {}건, {}ms", upserted, deleted, elapsed);
+            lastResult = new SyncResult("full", upserted, deleted, elapsed);
+            return lastResult;
+        } finally {
+            jobLock.unlock();
+        }
     }
 
     private int upsertInChunks(List<SearchSource> sources) {
