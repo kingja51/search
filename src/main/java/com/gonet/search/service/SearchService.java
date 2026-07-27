@@ -2,6 +2,7 @@ package com.gonet.search.service;
 
 import com.gonet.search.analyzer.KoreanAnalyzer;
 import com.gonet.search.config.ClientIpHolder;
+import com.gonet.search.config.SearchDocTypes;
 import com.gonet.search.domain.SearchKeywordLog;
 import com.gonet.search.dto.KeyCount;
 import com.gonet.search.dto.SearchCondition;
@@ -24,7 +25,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -55,9 +55,7 @@ public class SearchService {
     private final SearchMapper searchMapper;
     private final MeterRegistry meterRegistry;
     private final ObservationRegistry observationRegistry;
-
-    @Value("${search.result.group-order}")
-    private String groupOrderConfig;
+    private final SearchDocTypes docTypes;
 
     @Value("${search.result.group-size:10}")
     private int groupSize;
@@ -225,19 +223,19 @@ public class SearchService {
         return cond.getDateTo().plusDays(1).atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime();
     }
 
-    /** 그룹 쿼리 결과 → 설정 순서(group-order)대로 그룹 구성 */
+    /** 그룹 쿼리 결과 → search.doc-types 정의 순서대로 그룹 구성 */
     private List<SearchGroup> toGroups(List<SearchResultItem> rows) {
         Map<String, List<SearchResultItem>> byType = rows.stream()
                 .collect(Collectors.groupingBy(SearchResultItem::getDocType,
                         LinkedHashMap::new, Collectors.toList()));
         List<SearchGroup> groups = new ArrayList<>();
-        for (String docType : Arrays.stream(groupOrderConfig.split(",")).map(String::trim).toList()) {
+        for (String docType : docTypes.codes()) {
             List<SearchResultItem> items = byType.remove(docType);
             if (items != null && !items.isEmpty()) {
                 groups.add(new SearchGroup(docType, items.get(0).getTypeTotal(), items));
             }
         }
-        byType.forEach((type, items) ->                     // 설정에 없는 타입도 뒤에 노출
+        byType.forEach((type, items) ->                     // 정의에 없는 타입도 뒤에 노출 (라벨=코드값)
                 groups.add(new SearchGroup(type, items.get(0).getTypeTotal(), items)));
         return groups;
     }

@@ -98,24 +98,26 @@ UNION ALL SELECT * FROM vw_news_search;          -- ★ 추가
 
 ---
 
-## 3. 코드 반영 지점 (doc_type 등록)
+## 3. 코드 반영 지점 (doc_type 등록) — yml 한 줄
 
-색인·검색 코어는 수정할 것이 없고, **화면 라벨과 상수 목록**에만 새 doc_type을 추가합니다.
+색인·검색 코어는 수정할 것이 없습니다. 검색 대상의 **목록·라벨·노출 순서는
+`application.yml`의 `search.doc-types` 맵이 단일 소스**이므로, 여기에 한 줄만 추가합니다.
 
-| 파일 | 위치 | 수정 내용 |
-|---|---|---|
-| `application.yml` | `search.result.group-order` | 전체 탭 그룹 출력 순서에 `NEWS` 추가 |
-| `ObservabilityConfig.java` | `DOC_TYPES` | 색인 문서 수 게이지 대상에 추가 |
-| `IndexAdmController.java` | `DOC_TYPES` | 색인 관리 현황 카드에 추가 |
-| `MonitorAdmController.java` | `DOC_TYPES` | 모니터 색인 차트에 추가 |
-| `templates/usr/results.html` | 검색 대상 `<select>` (약 17행) | `<option value="NEWS">뉴스</option>` |
-| | 좌측 카테고리 목록 `{'ALL','CONTENT',...}` (약 137행) | 리스트에 `'NEWS'` 추가 |
-| | 좌측/그룹 제목 라벨 3항 연산식 (약 141·257행) | `NEWS → '뉴스'` 라벨 분기 추가 |
-| `templates/adm/index.html` | 유형 라벨 (약 20행) | 라벨 분기 추가 |
-| `templates/adm/stats.html` | `typeLabel` JS 맵 (약 100행) | `NEWS: '뉴스'` 추가 |
+```yaml
+search:
+  doc-types:                     # 순서 = 통합검색 그룹·좌측 메뉴·select 노출 순서
+    CONTENT: 컨텐츠
+    BBS: 게시판
+    FILE: 파일
+    MENU: 메뉴
+    NEWS: 뉴스                   # ★ 추가 — 이 한 줄로 아래가 전부 반영된다
+```
 
-> 참고: doc_type 라벨이 여러 곳에 흩어져 있습니다. 추가 대상이 많아지면
-> 공통 유틸(메시지 소스 또는 enum)로 모으는 리팩터링을 고려하세요.
+자동 반영 범위: 검색 대상 select · 좌측 카테고리 메뉴(건수 포함) · 통합검색 그룹 제목·순서 ·
+색인 관리 현황 카드 · 모니터 색인 게이지/차트 · 통계 화면 라벨 (`SearchDocTypes` 참조)
+
+> 맵에 등록하지 않아도 색인·검색 자체는 동작하지만, 화면에는 코드값(NEWS)이 그대로 라벨로
+> 표시되고 select/좌측 메뉴에는 나타나지 않으므로 반드시 등록하세요.
 
 ### (선택) 원본 상세 화면
 
@@ -147,7 +149,6 @@ UNION ALL SELECT * FROM vw_news_search;          -- ★ 추가
 | UNION 뷰 생성 오류 | 새 VIEW의 컬럼 수·이름·타입이 공통 8컬럼과 다름 (특히 doc_id는 BIGINT로 캐스팅) |
 | 문서를 수정해도 재색인 안 됨 | content_hash에 해당 컬럼이 빠졌거나, 원본 updated_at이 갱신되지 않음 |
 | 해시가 전부 NULL | NULL 가능 컬럼에 coalesce 누락 |
-| 화면에 그룹이 안 보임 | `group-order`에 doc_type 미등록 (설정에 없는 타입은 목록 맨 뒤에 표시됨) |
-| 색인 건수 카드/차트에 안 나옴 | 자바 `DOC_TYPES` 상수 3곳 미등록 |
+| select·좌측 메뉴에 안 보임 / 라벨이 코드값 | `search.doc-types` 맵 미등록 (3장 — yml 한 줄) |
 | 결과 클릭 시 404 | link_url 목적지 화면 없음 (3장 선택 항목) |
 | 링크가 `#`으로 나옴 | link_url이 상대경로/http(s)가 아님 (스킴 검증에 걸림) |

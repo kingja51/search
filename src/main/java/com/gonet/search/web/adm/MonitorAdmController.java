@@ -29,9 +29,9 @@ public class MonitorAdmController {
 
     private static final List<String> SPANS =
             List.of("search.analyze", "search.expand", "search.fts", "search.highlight");
-    private static final List<String> DOC_TYPES = List.of("CONTENT", "FILE", "BBS", "MENU");
 
     private final MeterRegistry registry;
+    private final com.gonet.search.config.SearchDocTypes docTypes;
 
     @GetMapping
     public String page(Model model) {
@@ -81,7 +81,7 @@ public class MonitorAdmController {
 
         // 색인 문서 수 (도메인별 Gauge)
         Map<String, Object> index = new LinkedHashMap<>();
-        for (String docType : DOC_TYPES) {
+        for (String docType : docTypes.codes()) {
             Gauge gauge = registry.find("index.documents").tag("doc_type", docType).gauge();
             index.put(docType, gauge == null ? 0 : gauge.value());
         }

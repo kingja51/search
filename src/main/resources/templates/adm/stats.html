@@ -97,7 +97,8 @@
         const byType = /*[[${byType}]]*/ [];
         const indexByCategory = /*[[${indexByCategory}]]*/ [];
 
-        const typeLabel = k => ({ALL: '통합', CONTENT: '컨텐츠', FILE: '파일', BBS: '게시판', MENU: '메뉴'}[k] || k);
+        const docTypeLabels = /*[[${docTypeLabels}]]*/ {};      // 서버 search.doc-types 단일 소스
+        const typeLabel = k => docTypeLabels[k] || k;
 
         // 일별 검색량 — 막대
         new Chart(document.getElementById('chart-daily'), {

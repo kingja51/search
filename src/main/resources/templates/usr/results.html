@@ -14,10 +14,8 @@
             <select name="type"
                     class="border-2 border-primary rounded-lg px-3 py-2.5 text-[14px] outline-none bg-white">
                 <option value="ALL" th:selected="${cond.isAllTab()}">통합검색</option>
-                <option value="CONTENT" th:selected="${cond.type == 'CONTENT'}">컨텐츠</option>
-                <option value="FILE" th:selected="${cond.type == 'FILE'}">파일</option>
-                <option value="BBS" th:selected="${cond.type == 'BBS'}">게시판</option>
-                <option value="MENU" th:selected="${cond.type == 'MENU'}">메뉴</option>
+                <option th:each="dt : ${docTypes.codes()}" th:value="${dt}"
+                        th:text="${docTypes.label(dt)}" th:selected="${cond.type == dt}">대상</option>
             </select>
             <div class="relative flex-1 min-w-56">
                 <input type="text" name="q" th:value="${res != null ? res.q : ''}" required autocomplete="off"
@@ -134,13 +132,22 @@
         <!-- 왼쪽: 카테고리 -->
         <aside class="md:w-44 shrink-0">
             <ul class="border-t-2 border-gray-800">
-                <li th:each="t : ${ {'ALL', 'CONTENT', 'FILE', 'BBS', 'MENU'} }" class="border-b border-gray-200">
-                    <a th:href="@{/result(q=${res != null ? res.q : ''}, type=${t == 'ALL' ? null : t}, sort=${cond.sort}, period=${cond.period}, op=${cond.op}, dateFrom=${cond.dateFrom}, dateTo=${cond.dateTo}, qPrev=${cond.qPrev})}"
+                <li class="border-b border-gray-200">
+                    <a th:href="@{/result(q=${res != null ? res.q : ''}, sort=${cond.sort}, period=${cond.period}, op=${cond.op}, dateFrom=${cond.dateFrom}, dateTo=${cond.dateTo}, qPrev=${cond.qPrev})}"
                        class="flex items-center justify-between px-3 py-3 text-[14px] hover:bg-gray-50"
-                       th:classappend="${(cond.isAllTab() and t == 'ALL') or cond.type == t} ? 'font-bold text-primary' : 'text-gray-700'">
-                        <span th:text="${t == 'ALL' ? '통합검색' : (t == 'CONTENT' ? '컨텐츠' : (t == 'FILE' ? '파일' : (t == 'BBS' ? '게시판' : '메뉴')))}">통합검색</span>
+                       th:classappend="${cond.isAllTab()} ? 'font-bold text-primary' : 'text-gray-700'">
+                        <span>통합검색</span>
                         <span th:if="${res != null}" class="text-xs text-gray-400"
-                              th:text="${res.tabCounts.get(t) ?: 0}">0</span>
+                              th:text="${res.tabCounts.get('ALL') ?: 0}">0</span>
+                    </a>
+                </li>
+                <li th:each="dt : ${docTypes.codes()}" class="border-b border-gray-200">
+                    <a th:href="@{/result(q=${res != null ? res.q : ''}, type=${dt}, sort=${cond.sort}, period=${cond.period}, op=${cond.op}, dateFrom=${cond.dateFrom}, dateTo=${cond.dateTo}, qPrev=${cond.qPrev})}"
+                       class="flex items-center justify-between px-3 py-3 text-[14px] hover:bg-gray-50"
+                       th:classappend="${cond.type == dt} ? 'font-bold text-primary' : 'text-gray-700'">
+                        <span th:text="${docTypes.label(dt)}">대상</span>
+                        <span th:if="${res != null}" class="text-xs text-gray-400"
+                              th:text="${res.tabCounts.get(dt) ?: 0}">0</span>
                     </a>
                 </li>
             </ul>
@@ -254,7 +261,7 @@
                 <!-- 통합검색: 도메인 그룹 뷰 (그룹당 10건 + 더보기) -->
                 <section th:each="group : ${res.groups}" class="mb-7">
                     <h2 class="text-base font-semibold mb-2.5 border-b-2 border-gray-800 pb-2"
-                        th:text="${group.docType == 'CONTENT' ? '컨텐츠' : (group.docType == 'FILE' ? '파일' : (group.docType == 'BBS' ? '게시판' : '메뉴'))} + ' (' + ${group.total} + ')'">그룹</h2>
+                        th:text="${docTypes.label(group.docType)} + ' (' + ${group.total} + ')'">그룹</h2>
                     <div th:each="item : ${group.items}" th:insert="~{usr/results :: resultItem(${item})}"></div>
                     <a th:if="${group.hasMore}"
                        th:href="@{/result(q=${res.q}, type=${group.docType}, sort=${cond.sort}, period=${cond.period}, op=${cond.op}, dateFrom=${cond.dateFrom}, dateTo=${cond.dateTo}, qPrev=${cond.qPrev})}"

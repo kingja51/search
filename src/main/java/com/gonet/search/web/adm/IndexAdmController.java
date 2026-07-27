@@ -1,5 +1,6 @@
 package com.gonet.search.web.adm;
 
+import com.gonet.search.config.SearchDocTypes;
 import com.gonet.search.mapper.SearchIndexMapper;
 import com.gonet.search.service.IndexingService;
 import lombok.RequiredArgsConstructor;
@@ -10,7 +11,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,16 +22,16 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class IndexAdmController {
 
-    private static final List<String> DOC_TYPES = List.of("CONTENT", "FILE", "BBS", "MENU");
-
     private final IndexingService indexingService;
     private final SearchIndexMapper searchIndexMapper;
+    private final SearchDocTypes docTypes;
 
     @GetMapping
     public String index(Model model) {
         model.addAttribute("menu", "index");
+        model.addAttribute("docTypes", docTypes);
         Map<String, Long> counts = new LinkedHashMap<>();
-        for (String docType : DOC_TYPES) {
+        for (String docType : docTypes.codes()) {
             counts.put(docType, searchIndexMapper.count(docType));
         }
         model.addAttribute("counts", counts);

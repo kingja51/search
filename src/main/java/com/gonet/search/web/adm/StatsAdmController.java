@@ -20,11 +20,16 @@ public class StatsAdmController {
 
     private final KeywordLogService keywordLogService;
     private final SearchIndexMapper searchIndexMapper;
+    private final com.gonet.search.config.SearchDocTypes docTypes;
 
     @GetMapping
     public String stats(@RequestParam(defaultValue = "30") int days, Model model) {
         model.addAttribute("menu", "stats");
         model.addAttribute("days", days);
+        var labels = new java.util.LinkedHashMap<String, String>();
+        labels.put("ALL", "통합");
+        labels.putAll(docTypes.getDocTypes());
+        model.addAttribute("docTypeLabels", labels);
         model.addAttribute("summary", keywordLogService.statsSummary(days));
         model.addAttribute("daily", keywordLogService.dailyCounts(Math.min(days, 14)));
         model.addAttribute("byType", keywordLogService.searchByDocType(days));

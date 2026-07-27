@@ -1,5 +1,6 @@
 package com.gonet.search.web.usr;
 
+import com.gonet.search.config.SearchDocTypes;
 import com.gonet.search.dto.SearchCondition;
 import com.gonet.search.dto.SearchResponse;
 import com.gonet.search.service.SearchService;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 public class SearchUsrController {
 
     private final SearchService searchService;
+    private final SearchDocTypes docTypes;
 
     /** 메인 = 통합검색 화면 (검색어 없으면 검색 기능 소개 모드) */
     @GetMapping("/")
@@ -27,6 +29,7 @@ public class SearchUsrController {
     public String result(@ModelAttribute("cond") SearchCondition cond,
                          HttpServletRequest request,
                          Model model) {
+        model.addAttribute("docTypes", docTypes);
         cond.applyQPrevRemove();                 // 재검색 칩 × 클릭 처리
         cond.applyWithin();                      // "결과내 재검색" 체크박스 처리 (미체크 새 검색은 qPrev 초기화)
         cond.sanitize();                         // size/page/qPrev 상한 클램프

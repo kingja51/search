@@ -8,8 +8,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskDecorator;
 import org.springframework.core.task.support.ContextPropagatingTaskDecorator;
 
-import java.util.List;
-
 /**
  * 관측성 구성 (DESIGN.md 6장).
  * - index.documents Gauge: 도메인별 색인 문서 수 (Prometheus 스크레이프 시 조회)
@@ -19,8 +17,6 @@ import java.util.List;
 @Configuration
 public class ObservabilityConfig {
 
-    private static final List<String> DOC_TYPES = List.of("CONTENT", "FILE", "BBS", "MENU");
-
     /** @Async 실행 시 trace 컨텍스트 전파 — Boot가 TaskDecorator 빈을 기본 Executor에 자동 적용 */
     @Bean
     public TaskDecorator taskDecorator() {
@@ -28,8 +24,8 @@ public class ObservabilityConfig {
     }
 
     @Bean
-    public MeterBinder indexDocumentsGauge(SearchIndexMapper searchIndexMapper) {
-        return registry -> DOC_TYPES.forEach(docType ->
+    public MeterBinder indexDocumentsGauge(SearchIndexMapper searchIndexMapper, SearchDocTypes docTypes) {
+        return registry -> docTypes.codes().forEach(docType ->
                 Gauge.builder("index.documents", () -> safeCount(searchIndexMapper, docType))
                         .tag("doc_type", docType)
                         .description("색인 문서 수")

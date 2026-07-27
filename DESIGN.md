@@ -747,7 +747,8 @@ ORDER BY array_position(:groupOrder, doc_type), rn;   -- 그룹 순서는 설정
 ```
 
 - `sort=latest`일 때는 PARTITION 내 `ORDER BY source_updated_at DESC`로 교체
-- 그룹 순서·건수는 설정 외부화: `search.result.group-order`(기본 CONTENT, BBS, FILE, MENU), `group-size`(기본 10)
+- 검색 대상 정의는 **`search.doc-types` 맵이 단일 소스** (코드→라벨, 순서=그룹·메뉴 노출 순서) —
+  select/좌측 메뉴/그룹 제목/색인 카드·게이지/통계 라벨이 모두 이 맵을 참조. 그룹당 건수는 `group-size`(기본 10)
 
 **키워드 하이라이트 (HighlightService)** — 애플리케이션 레이어에서 처리한다 (ts_headline 대신):
 
@@ -933,7 +934,11 @@ search:
   keyword:
     popular-refresh-cron: "0 */10 * * * *"  # 인기 검색어 MV 자동 갱신 (10분마다)
   result:
-    group-order: CONTENT, BBS, FILE, MENU   # 전체 탭 카테고리 그룹 출력 순서
+  doc-types:                     # 검색 대상 단일 소스 — 순서 = 그룹·메뉴 노출 순서 (새 VIEW 추가 시 한 줄)
+    CONTENT: 컨텐츠
+    BBS: 게시판
+    FILE: 파일
+    MENU: 메뉴
     group-size: 10                          # 그룹당 노출 건수 (초과 시 "더보기")
     summary-length: 2000                    # 목록 출력 본문 길이
 ```

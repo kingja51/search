@@ -16,8 +16,7 @@
             <p class="text-xl font-bold" th:text="${total}">0</p>
         </div>
         <div th:each="c : ${counts}" class="bg-white border border-gray-200 rounded-xl p-4">
-            <p class="text-[11px] text-gray-400"
-               th:text="${c.key == 'CONTENT' ? '컨텐츠' : (c.key == 'FILE' ? '파일' : (c.key == 'BBS' ? '게시판' : '메뉴'))}">유형</p>
+            <p class="text-[11px] text-gray-400" th:text="${docTypes.label(c.key)}">유형</p>
             <p class="text-xl font-bold" th:text="${c.value}">0</p>
         </div>
     </div>

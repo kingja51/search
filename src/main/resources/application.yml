@@ -55,6 +55,11 @@ management:
 
 search:
   trust-forwarded-header: false  # 리버스 프록시 뒤 배포 시에만 true — 직접 노출 환경에서 XFF 신뢰 시 IP 위조 가능
+  doc-types:                     # 검색 대상 정의의 단일 소스 — 순서 = 통합검색 그룹·좌측 메뉴 노출 순서
+    CONTENT: 컨텐츠               #   새 검색 VIEW 추가 시 여기 한 줄만 추가하면 화면 전체에 반영
+    BBS: 게시판                   #   (docs/add-search-source.md)
+    FILE: 파일
+    MENU: 메뉴
   index:
     sync-cron: "0 0 6,18 * * *"  # 색인 동기화 (매일 2회)
     chunk-size: 500
@@ -64,6 +69,5 @@ search:
   keyword:
     popular-refresh-cron: "0 */10 * * * *"  # 인기 검색어 MV 자동 갱신 (10분마다)
   result:
-    group-order: CONTENT, BBS, FILE, MENU   # 전체 탭 카테고리 그룹 출력 순서
-    group-size: 10                          # 그룹당 노출 건수 (초과 시 "더보기")
+    group-size: 10                          # 통합검색 그룹당 노출 건수 (초과 시 "더보기") — 그룹 순서는 doc-types 순서
     summary-length: 2000                    # 목록 출력 본문 길이
