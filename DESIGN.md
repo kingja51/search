@@ -875,6 +875,10 @@ public abstract class BaseEntity {
 - `updated_at`은 DB DEFAULT도 있지만 **JPA가 항상 명시 세팅** — DB 직접 수정(SQL) 시에만 DEFAULT가 의미를 가짐
 - `log_search_keyword`는 감사 컬럼이 로그 본연의 의미를 겸한다: `created_at`=검색 시각,
   `created_ip`=검색자 IP(내 검색어 조회 키), `created_by`=검색자 ID(로그인 전 `guest`)
+- **trace_id는 공통 감사 컬럼에 포함하지 않는다** — 감사 컬럼은 "누가·언제·어디서"의 영속 기록이고,
+  traceId는 요청 단위 진단 정보라 성격이 다르다. 따라서 요청 흐름 추적이 필요한 **로그 테이블(`log_*`)에만**
+  `trace_id` 컬럼을 둔다(현재 `log_search_keyword`). 일반 테이블의 변경 원인 추적은 감사 컬럼(시각·IP·ID)으로
+  앱 로그의 traceId를 역으로 찾는 방식으로 충분하다.
 
 ### 4.7 공통 설정 (application.yml)
 
