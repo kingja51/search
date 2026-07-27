@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/search/default}">
+<head>
+    <title th:text="${boardCd} + ' 게시판'">게시판</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <section class="py-8">
+        <h1 class="text-xl font-bold mb-4" th:text="'게시판 · ' + ${boardCd}">게시판</h1>
+        <div th:if="${#lists.isEmpty(posts)}" class="py-12 text-center text-gray-400">게시글이 없습니다.</div>
+        <ul>
+            <li th:each="post : ${posts}" class="border-b border-gray-100">
+                <a th:href="@{'/bbs/' + ${boardCd} + '/' + ${post.id}}"
+                   class="flex items-center gap-3 py-3 hover:bg-gray-50 px-1">
+                    <span class="flex-1 text-[14px] font-medium" th:text="${post.title}">제목</span>
+                    <span class="text-xs text-gray-400" th:text="${post.writer}">작성자</span>
+                </a>
+            </li>
+        </ul>
+    </section>
+    <a th:href="@{/}" class="inline-block mb-10 px-4 py-1.5 border border-gray-200 rounded-full text-[13px] text-gray-500 hover:bg-gray-50">← 검색으로</a>
+</main>
+</body>
+</html>

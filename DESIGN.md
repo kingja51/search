@@ -1101,6 +1101,10 @@ templates/
 검색 키워드(동의어 포함)는 `<mark>` 하이라이트 처리한다.
 무결과 검색어(`result_count = 0`) 리포트는 **사전을 보강할 단서**가 되므로 (추후) 통계 화면에 반드시 포함.
 
+**샘플 원본 뷰어 (데모용)** — 검색 결과 `link_url`의 목적지 화면. 실제 서비스에서는 각 도메인의 화면으로 대체:
+`GET /content/{id}` · `GET /bbs/{boardCd}` (목록) · `GET /bbs/{boardCd}/{id}` · `GET /file/{id}`
+(SampleViewUsrController + usr/view-*.html 4종, 미존재 문서는 안내 문구 표시)
+
 ---
 
 ## 8. API 설계 요약

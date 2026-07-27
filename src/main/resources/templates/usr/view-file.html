@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/search/default}">
+<head>
+    <title th:text="${file != null ? file.fileName : '파일'}">파일</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <section class="py-8" th:if="${file != null}">
+        <p class="text-xs text-gray-400 mb-1">파일</p>
+        <h1 class="text-xl font-bold mb-4" th:text="${file.fileName}">파일명</h1>
+        <table class="text-[13px] mb-5">
+            <tr><td class="pr-6 py-1 text-gray-400">형식</td><td th:text="${file.fileExt}">pdf</td></tr>
+            <tr><td class="pr-6 py-1 text-gray-400">크기</td>
+                <td th:text="${file.fileSize != null ? #numbers.formatDecimal(file.fileSize / 1024.0, 0, 0) + ' KB' : '-'}">KB</td></tr>
+            <tr><td class="pr-6 py-1 text-gray-400">경로</td><td class="text-gray-500" th:text="${file.filePath}">경로</td></tr>
+            <tr th:if="${file.refType == 'CONTENT'}"><td class="pr-6 py-1 text-gray-400">출처</td>
+                <td><a class="text-primary hover:underline" th:href="@{'/content/' + ${file.refId}}">관련 컨텐츠 보기</a></td></tr>
+        </table>
+        <div th:if="${file.extractText}" class="border border-gray-200 rounded-xl p-4">
+            <p class="text-xs font-semibold text-gray-400 mb-2">본문 미리보기 (색인 추출 텍스트)</p>
+            <p class="text-[13px] leading-relaxed text-gray-700 whitespace-pre-line" th:text="${file.extractText}">추출 텍스트</p>
+        </div>
+    </section>
+    <section class="py-16 text-center text-gray-400" th:if="${file == null}">
+        존재하지 않는 파일입니다.
+    </section>
+    <a th:href="@{/}" class="inline-block mb-10 px-4 py-1.5 border border-gray-200 rounded-full text-[13px] text-gray-500 hover:bg-gray-50">← 검색으로</a>
+</main>
+</body>
+</html>

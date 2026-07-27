@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/search/default}">
+<head>
+    <title th:text="${content != null ? content.title : '컨텐츠'}">컨텐츠</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <section class="py-8" th:if="${content != null}">
+        <p class="text-xs text-gray-400 mb-1">
+            컨텐츠 <span th:if="${content.category}" th:text="'· ' + ${content.category}"></span>
+        </p>
+        <h1 class="text-xl font-bold mb-2 border-b border-gray-200 pb-3" th:text="${content.title}">제목</h1>
+        <div class="text-[14px] leading-relaxed text-gray-800 whitespace-pre-line mt-4"
+             th:text="${content.content}">본문</div>
+    </section>
+    <section class="py-16 text-center text-gray-400" th:if="${content == null}">
+        존재하지 않는 컨텐츠입니다.
+    </section>
+    <a th:href="@{/}" class="inline-block mb-10 px-4 py-1.5 border border-gray-200 rounded-full text-[13px] text-gray-500 hover:bg-gray-50">← 검색으로</a>
+</main>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gonet.search.mapper.BbsMapper">
+
+    <sql id="columns">
+        id, board_cd, title, content, writer, status,
+        created_at, created_ip, created_by, updated_at, updated_ip, updated_by
+    </sql>
+
+    <select id="findById" resultType="Bbs">
+        SELECT <include refid="columns"/>
+        FROM tn_bbs
+        WHERE id = #{id}
+    </select>
+
+    <select id="findByBoardCd" resultType="Bbs">
+        SELECT <include refid="columns"/>
+        FROM tn_bbs
+        WHERE board_cd = #{boardCd}
+          AND status = 'ACTIVE'
+        ORDER BY id DESC
+    </select>
+
+</mapper>

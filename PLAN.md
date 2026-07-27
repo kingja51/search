@@ -68,7 +68,8 @@
 | qPrev 칩 | ✅ | 적용된 재검색어 칩 + × 클릭 시 해당 조건만 제거 |
 | 무한스크롤 | ✅ | /result/items fragment + sentinel(hx-trigger="revealed" outerHTML 교체) |
 | 위젯 fragment | ✅ | usr/keywords.html (recommend/popular/myKeywords/autocomplete/empty) |
-| UI 실동작 검증 | ⏸ | **PostgreSQL 준비 후** — 무한스크롤·자동완성·재검색 칩 동작 확인 |
+| UI 실동작 검증 | ✅ | 검색·자동완성·위젯·칩 동작 확인 (2026-07-27) |
+| 샘플 원본 뷰어 (추가) | ✅ | 검색 결과 링크 목적지 — /content/{id}, /bbs/{boardCd}(목록), /bbs/{boardCd}/{id}, /file/{id}. SampleViewUsrController + view-*.html 4종, 미존재 문서는 안내 표시 |
 
 ## 5단계: 캐시·관측성 ✅
 

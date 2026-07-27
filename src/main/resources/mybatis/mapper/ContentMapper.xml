@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gonet.search.mapper.ContentMapper">
+
+    <select id="findById" resultType="Content">
+        SELECT id, title, content, category, status,
+               created_at, created_ip, created_by, updated_at, updated_ip, updated_by
+        FROM tn_content
+        WHERE id = #{id}
+    </select>
+
+</mapper>
