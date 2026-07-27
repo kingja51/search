@@ -28,6 +28,8 @@ Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreS
 
 - **[설계서 (DESIGN.md)](DESIGN.md)** — DB 스키마(Flyway V1~V4), 아키텍처, 검색 파이프라인, 화면·API 명세, 설계 결정 22항
 - **[사용자 검색 매뉴얼 (docs/user-manual.md)](docs/user-manual.md)** — 화면 구성, 기본/상세검색, 결과내 재검색, FAQ
+- **[관리자 화면 매뉴얼 (docs/admin-manual.md)](docs/admin-manual.md)** — 사전 4종 관리, 색인 관리, 통계·모니터, 운영 워크플로
+- **[검색 대상(VIEW) 추가 가이드 (docs/add-search-source.md)](docs/add-search-source.md)** — 새 테이블을 검색에 편입하는 절차
 - [샘플 데이터 (V4__sample_data.sql)](src/main/resources/db/migration/V4__sample_data.sql) — 테이블별 10건
 
 ## 실행 (로컬)
