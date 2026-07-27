@@ -35,9 +35,10 @@
 
     <!-- 파일 추출 결과 -->
     <div class="bg-white border border-gray-200 rounded-xl p-4 mb-5 text-[13px]">
-        <h2 class="text-sm font-semibold mb-2">파일 텍스트 추출 (매일 01:00 자동 + 수동)</h2>
+        <h2 class="text-sm font-semibold mb-2">파일 텍스트 추출 (스케줄: 매일 01:00 · 최근 3일 / 수동 버튼: 최근 1개월)</h2>
         <p th:if="${lastExtract == null}" class="text-gray-400">이번 기동 이후 실행 이력이 없습니다.</p>
         <p th:if="${lastExtract != null}" class="text-gray-700">
+            <span class="font-semibold" th:text="${lastExtract.mode}">모드</span> ·
             대상 <span class="font-semibold" th:text="${lastExtract.targets}">0</span>건 중
             반영 <span class="font-semibold text-primary" th:text="${lastExtract.extracted}">0</span>건
             · 건너뜀 <span th:text="${lastExtract.skipped}">0</span>건
@@ -73,6 +74,8 @@
         동기화는 content_hash 비교로 변경분만 처리합니다. 단어사전·품사 설정 변경 후에는 전체 재색인을 실행하세요.<br>
         파일 추출은 선언된 확장자(DOC/DOCX/XLS/XLSX/PPT/PPTX/PDF/TXT/CSV/HWP/HWPX)만 처리하며,
         추출 본문은 <span class="font-semibold">개인정보 마스킹 후</span> 색인에 반영됩니다.
+        새벽 스케줄은 매일 실행되므로 <span class="font-semibold">최근 3일</span>만 비교·추출하고,
+        수동 버튼은 <span class="font-semibold">최근 1개월</span>을 처리합니다.
         <span class="text-red-500">전체 재색인 시 추출 본문이 초기화되므로 재색인 후 파일 추출을 다시 실행하세요.</span>
     </p>
 </main>

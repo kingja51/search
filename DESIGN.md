@@ -855,7 +855,9 @@ WHERE NOT EXISTS (
 **파일 텍스트 추출 배치 (FileExtractService)** — 파일 본문을 원본 파일에서 추출해 색인에 반영:
 
 ```
-대상 선정: tn_file 최근 N개월(search.extract.months, 기본 1) + 선언 확장자만(search.extract.extensions)
+대상 선정: tn_file 최근 파일 + 선언 확장자만(search.extract.extensions)
+  - 스케줄(매일 01시): 최근 3일(search.extract.schedule-days) — 매일 실행되므로 짧은 윈도우 + 겹침 여유
+  - 수동 버튼: 최근 1개월(search.extract.manual-months)
   → 원본파일전체경로(vw_file_search.origin_path = tn_file.file_path)에서 본문 추출
   → 개인정보 마스킹(MaskingUtil, DB 반영 전 필수) → Nori 분석
   → tn_search_index(summary·tokens) UPDATE (content_hash는 유지 — diff 동기화가 덮어쓰지 않음)

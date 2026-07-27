@@ -37,8 +37,11 @@ public class FileExtractService {
     private final FileTextExtractor fileTextExtractor;
     private final KoreanAnalyzer koreanAnalyzer;
 
-    @Value("${search.extract.months:1}")
-    private int months;
+    @Value("${search.extract.schedule-days:3}")
+    private int scheduleDays;
+
+    @Value("${search.extract.manual-months:1}")
+    private int manualMonths;
 
     @Value("${search.result.summary-length:2000}")
     private int summaryLength;
@@ -47,17 +50,21 @@ public class FileExtractService {
     @lombok.Getter
     private volatile ExtractResult lastResult;
 
-    /** 매일 새벽 1시 자동 추출 */
+    /** 매일 새벽 1시 자동 추출 — 매일 실행되므로 최근 N일(기본 3일)만 비교·추출 */
     @Scheduled(cron = "${search.extract.cron}")
     public void scheduledExtract() {
-        extractRecent();
+        extract(OffsetDateTime.now().minusDays(scheduleDays), "스케줄 · 최근 " + scheduleDays + "일");
     }
 
-    /** 최근 N개월 파일 텍스트 추출 → 색인 반영 */
-    public synchronized ExtractResult extractRecent() {
+    /** 어드민 [파일 추출] 버튼 — 최근 N개월(기본 1개월) 대상 */
+    public ExtractResult extractRecent() {
+        return extract(OffsetDateTime.now().minusMonths(manualMonths), "수동 · 최근 " + manualMonths + "개월");
+    }
+
+    /** 파일 텍스트 추출 → 색인 반영 */
+    private synchronized ExtractResult extract(OffsetDateTime fromTs, String mode) {
         long start = System.currentTimeMillis();
         String ip = ClientIpHolder.get();
-        OffsetDateTime fromTs = OffsetDateTime.now().minusMonths(months);
         List<com.gonet.search.domain.File> targets =
                 fileMapper.findExtractTargets(fromTs, fileTextExtractor.allowedExtensions());
 
@@ -94,9 +101,9 @@ public class FileExtractService {
             }
         }
         long elapsed = System.currentTimeMillis() - start;
-        log.info("파일 텍스트 추출 완료: 대상 {}건 중 반영 {}건, 건너뜀 {}건, 실패 {}건, {}ms",
-                targets.size(), extracted, skipped, failed, elapsed);
-        lastResult = new ExtractResult(targets.size(), extracted, skipped, failed, elapsed);
+        log.info("파일 텍스트 추출 완료({}): 대상 {}건 중 반영 {}건, 건너뜀 {}건, 실패 {}건, {}ms",
+                mode, targets.size(), extracted, skipped, failed, elapsed);
+        lastResult = new ExtractResult(mode, targets.size(), extracted, skipped, failed, elapsed);
         return lastResult;
     }
 
@@ -113,6 +120,6 @@ public class FileExtractService {
     }
 
     /** 추출 결과 요약 (어드민 표시용) */
-    public record ExtractResult(int targets, int extracted, int skipped, int failed, long elapsedMs) {
+    public record ExtractResult(String mode, int targets, int extracted, int skipped, int failed, long elapsedMs) {
     }
 }

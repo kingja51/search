@@ -70,7 +70,8 @@ search:
     popular-refresh-cron: "0 */10 * * * *"  # 인기 검색어 MV 자동 갱신 (10분마다)
   extract:
     cron: "0 0 1 * * *"          # 파일 텍스트 추출 (매일 새벽 1시)
-    months: 1                    # 최근 N개월 파일만 대상
+    schedule-days: 3             # 스케줄 대상: 최근 N일 (매일 실행되므로 짧은 윈도우 + 겹침 여유)
+    manual-months: 1             # 어드민 [파일 추출] 버튼 대상: 최근 N개월
     # 선언된 확장자만 추출 처리 (대소문자 무시)
     # DOC~CSV: Apache Tika(POI·PDFBox) / HWP·HWPX: hwplib·hwpxlib (rhwp는 Rust/WASM이라 자바 미지원 — 대체)
     extensions: DOC, DOCX, XLS, XLSX, PPT, PPTX, PDF, TXT, CSV, HWP, HWPX
