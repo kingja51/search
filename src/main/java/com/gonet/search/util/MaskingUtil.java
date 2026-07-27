@@ -17,9 +17,25 @@ import java.util.regex.Pattern;
  */
 public final class MaskingUtil {
 
-    /** 주민등록번호: 990101-1234567 → 990101-1****** (뒤 6자리 마스킹, 성별자리 유지) */
+    /**
+     * 주민등록번호: 990101-1234567 → ******-*******
+     * 앞 6자리(=생년월일)까지 전체 마스킹 — 생년월일을 민감정보로 취급하는 정책과 일관성 유지.
+     */
     private static final Pattern RRN =
-            Pattern.compile("(?<!\\d)(\\d{6})[-\\s]?([1-4])\\d{6}(?!\\d)");
+            Pattern.compile("(?<!\\d)\\d{6}[-\\s]?[1-4]\\d{6}(?!\\d)");
+
+    /**
+     * 생년월일: **라벨 문맥 기반** — "생년월일/생일/출생일" 등 라벨이 바로 앞에 있는 날짜만 마스킹.
+     * (날짜 형태만으로는 공고일·마감일 등 일반 날짜와 구분이 불가능하므로 라벨 없는 날짜는 건드리지 않는다)
+     * 지원 형식: YYYY-MM-DD · YYYY.MM.DD · YYYY/MM/DD · YYYY년 M월 D일 · YYMMDD(6자리)
+     * 예) "생년월일: 1990-01-01" → "생년월일: ****-**-**" / "공고일: 2026-07-28" → 유지
+     */
+    private static final Pattern BIRTH_DATE = Pattern.compile(
+            "(생년월일|출생년월일|출생일|생년|생일)"          // 라벨 (긴 것 우선)
+            + "(\\s*[:：]?\\s*)"                              // 구분자
+            + "((?:\\d{4}[-./]\\d{1,2}[-./]\\d{1,2})"        //   YYYY-MM-DD, YYYY.M.D, YYYY/MM/DD
+            + "|(?:\\d{4}년\\s*\\d{1,2}월\\s*\\d{1,2}일)"    //   YYYY년 M월 D일
+            + "|(?:\\d{6}(?![-\\s]?\\d)))");                  //   YYMMDD — 주민번호 앞부분은 제외(RRN이 전체 처리)
 
     /** 카드번호(4-4-4-4, 구분자 유무): 1234-5678-9012-3456 → 1234-****-****-3456 */
     private static final Pattern CARD =
@@ -38,14 +54,17 @@ public final class MaskingUtil {
 
     /**
      * 텍스트 내 개인정보를 검사해 마스킹한다.
-     * 적용 순서: 주민번호 → 카드번호 → 휴대폰 → 이메일
+     * 적용 순서: 생년월일(라벨 문맥) → 주민번호 → 카드번호 → 휴대폰 → 이메일
      * (긴 숫자 패턴을 먼저 처리해 부분 오매칭을 방지)
      */
     public static String mask(String text) {
         if (text == null || text.isBlank()) {
             return text;
         }
-        String masked = RRN.matcher(text).replaceAll("$1-$2******");
+        // 생년월일: 라벨은 남기고 날짜의 숫자만 * 치환 (구분자·년월일 표기는 유지)
+        String masked = BIRTH_DATE.matcher(text).replaceAll(mr ->
+                mr.group(1) + mr.group(2) + mr.group(3).replaceAll("\\d", "*"));
+        masked = RRN.matcher(masked).replaceAll("******-*******");
         masked = CARD.matcher(masked).replaceAll("$1-****-****-$2");
         masked = MOBILE.matcher(masked).replaceAll("$1-****-$2");
         masked = EMAIL.matcher(masked).replaceAll("$1****@$2");

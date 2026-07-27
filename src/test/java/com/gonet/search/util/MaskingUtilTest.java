@@ -9,12 +9,43 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MaskingUtilTest {
 
     @Test
-    @DisplayName("주민등록번호: 뒤 6자리 마스킹 (구분자 유무 모두)")
+    @DisplayName("주민등록번호: 앞자리(생년월일)까지 전체 마스킹 (구분자 유무 모두)")
     void maskResidentRegistrationNumber() {
         assertThat(MaskingUtil.mask("주민번호 990101-1234567 입니다"))
-                .isEqualTo("주민번호 990101-1****** 입니다");
+                .isEqualTo("주민번호 ******-******* 입니다");
         assertThat(MaskingUtil.mask("9901012234567"))
-                .isEqualTo("990101-2******");
+                .isEqualTo("******-*******");
+    }
+
+    @Test
+    @DisplayName("생년월일: 라벨이 있는 날짜만 마스킹 (형식 4종)")
+    void maskBirthDateWithLabel() {
+        assertThat(MaskingUtil.mask("생년월일: 1990-01-01"))
+                .isEqualTo("생년월일: ****-**-**");
+        assertThat(MaskingUtil.mask("생일 1990.1.1"))
+                .isEqualTo("생일 ****.*.*");
+        assertThat(MaskingUtil.mask("출생일: 1990년 1월 1일"))
+                .isEqualTo("출생일: ****년 *월 *일");
+        assertThat(MaskingUtil.mask("생년월일 900101 기재"))
+                .isEqualTo("생년월일 ****** 기재");
+    }
+
+    @Test
+    @DisplayName("생년월일 오탐 방지: 라벨 없는 일반 날짜(공고일·마감일 등)는 유지")
+    void doesNotMaskOrdinaryDates() {
+        assertThat(MaskingUtil.mask("공고일: 2026-07-28"))
+                .isEqualTo("공고일: 2026-07-28");
+        assertThat(MaskingUtil.mask("접수 마감 2026.8.15 18시"))
+                .isEqualTo("접수 마감 2026.8.15 18시");
+        assertThat(MaskingUtil.mask("시행일 2026년 8월 1일"))
+                .isEqualTo("시행일 2026년 8월 1일");
+    }
+
+    @Test
+    @DisplayName("생년월일 라벨 + 주민번호 전체가 오면 주민번호 전체 마스킹으로 처리")
+    void birthLabelWithRrn() {
+        assertThat(MaskingUtil.mask("생년월일: 990101-1234567"))
+                .isEqualTo("생년월일: ******-*******");
     }
 
     @Test
@@ -50,11 +81,11 @@ class MaskingUtilTest {
         String input = "홍길동(990101-1234567), 전화 010-1234-5678, 카드 1111-2222-3333-4444, mail hong@test.co.kr";
         String result = MaskingUtil.mask(input);
 
-        assertThat(result).contains("990101-1******");
+        assertThat(result).contains("******-*******");
         assertThat(result).contains("010-****-5678");
         assertThat(result).contains("1111-****-****-4444");
         assertThat(result).contains("ho****@test.co.kr");
-        assertThat(result).doesNotContain("1234567", "2222", "3333", "hong@");
+        assertThat(result).doesNotContain("990101", "1234567", "2222", "3333", "hong@");
     }
 
     @Test
