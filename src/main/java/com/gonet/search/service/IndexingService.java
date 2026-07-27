@@ -99,17 +99,24 @@ public class IndexingService {
         return total;
     }
 
-    /** 소스 1건 → Nori 분석 → 색인 행 변환 */
+    /**
+     * 소스 1건 → 개인정보 마스킹 → Nori 분석 → 색인 행 변환.
+     * 마스킹을 색인 시점에 수행하므로 tn_search_index(title·summary·tokens)에는
+     * 개인정보가 저장되지 않고, 개인정보 숫자로 검색되지도 않는다.
+     * ※ 마스킹 패턴 변경 시 전체 재색인 필요.
+     */
     private SearchIndex toIndex(SearchSource source) {
-        String body = source.getBody() == null ? "" : source.getBody();
+        String title = com.gonet.search.util.MaskingUtil.mask(source.getTitle());
+        String body = com.gonet.search.util.MaskingUtil.mask(
+                source.getBody() == null ? "" : source.getBody());
         SearchIndex index = new SearchIndex();
         index.setDocType(source.getDocType());
         index.setDocId(source.getDocId());
-        index.setTitle(source.getTitle());
+        index.setTitle(title);
         index.setSummary(truncateSafely(body, summaryLength));
         index.setLinkUrl(sanitizeLinkUrl(source.getLinkUrl()));
         index.setCategory(source.getCategory());
-        index.setTokens(String.join(" ", koreanAnalyzer.analyze(source.getTitle() + " " + body)));
+        index.setTokens(String.join(" ", koreanAnalyzer.analyze(title + " " + body)));
         index.setContentHash(source.getContentHash());
         index.setSourceUpdatedAt(source.getUpdatedAt());
         return index;

@@ -45,6 +45,7 @@
 - qPrev 포함 모든 검색어는 매 요청마다 금지어 검사를 다시 거친다
 - 사전 변경 시 캐시 evict·Analyzer 리로드는 트랜잭션 커밋 후(AFTER_COMMIT)에 수행
 - 하이라이트는 앱 레이어(escape 후 `<mark>`) — ts_headline 사용 금지
+- 개인정보 마스킹은 **색인 시점**(IndexingService에서 MaskingUtil 적용 — 주민/카드/휴대폰/이메일). 마스킹 패턴 변경 시 전체 재색인. 색인을 안 거치는 화면(뷰어 등)은 표시 직전 마스킹
 
 ## 자주 쓰는 명령
 
