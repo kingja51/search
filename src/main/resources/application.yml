@@ -41,6 +41,7 @@ search:
   index:
     sync-cron: "0 0 6,18 * * *"  # 색인 동기화 (매일 2회)
     chunk-size: 500
+    sync-on-startup: true        # 기동 직후 1회 동기화 (운영에서 부담되면 false)
   analyzer:
     keep-pos: NNG, NNP, SL, SN   # 색인·검색 대상 품사 (변경 시 전체 재색인 필요)
   keyword:

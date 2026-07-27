@@ -11,4 +11,39 @@
         </where>
     </select>
 
+    <!-- 색인 배치 upsert (DESIGN.md 4.4)
+         감사 컬럼: created_*는 AuditInterceptor가 항목에 주입한 값(system/서버IP),
+         충돌(UPDATE) 시에는 updated_*를 EXCLUDED 값으로 갱신 -->
+    <insert id="upsertBatch">
+        INSERT INTO tn_search_index (
+            doc_type, doc_id, title, summary, link_url, category,
+            tokens, content_hash, source_updated_at,
+            created_at, created_ip, created_by, updated_at
+        ) VALUES
+        <foreach collection="items" item="i" separator=",">
+            (#{i.docType}, #{i.docId}, #{i.title}, #{i.summary}, #{i.linkUrl}, #{i.category},
+             #{i.tokens}, #{i.contentHash}, #{i.sourceUpdatedAt},
+             #{i.createdAt}, #{i.createdIp}, #{i.createdBy}, #{i.updatedAt})
+        </foreach>
+        ON CONFLICT (doc_type, doc_id) DO UPDATE
+        SET title             = EXCLUDED.title,
+            summary           = EXCLUDED.summary,
+            link_url          = EXCLUDED.link_url,
+            category          = EXCLUDED.category,
+            tokens            = EXCLUDED.tokens,
+            content_hash      = EXCLUDED.content_hash,
+            source_updated_at = EXCLUDED.source_updated_at,
+            updated_at        = now(),
+            updated_ip        = EXCLUDED.created_ip,
+            updated_by        = 'system'
+    </insert>
+
+    <delete id="deleteOrphans">
+        DELETE FROM tn_search_index i
+        WHERE NOT EXISTS (
+            SELECT 1 FROM vw_search_source s
+            WHERE s.doc_type = i.doc_type AND s.doc_id = i.doc_id
+        )
+    </delete>
+
 </mapper>
