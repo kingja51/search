@@ -84,36 +84,51 @@ Elasticsearch 같은 별도 검색 서버 없이 **PostgreSQL 18의 Full-Text Se
 
 ## 3. 데이터베이스 설계
 
+### 3.0 테이블 명명 규칙
+
+| 접두사 | 대상 | 예 |
+|---|---|---|
+| `tn_` | 일반 테이블 | `tn_document`, `tn_dic_word`, `tn_search_index` |
+| `log_` | 로그 테이블 | `log_search_keyword` |
+| `vw_` | VIEW / MATERIALIZED VIEW | `vw_search_source`, `vw_popular_keyword` |
+
 ### 3.1 ERD 개요
 
 ```mermaid
 erDiagram
-    document ||--o{ mv_search : "색인 대상"
-    dic_word {
+    tn_document ||--o{ tn_search_index : "vw_search_source 경유 색인"
+    tn_dic_word {
         bigint id PK
         varchar word
         varchar pos_tag
         boolean enabled
     }
-    dic_synonym {
+    tn_dic_synonym {
         bigint id PK
         bigint group_id
         varchar word
         boolean is_representative
     }
-    dic_banned {
+    tn_dic_banned {
         bigint id PK
         varchar word
         varchar block_type
     }
-    document {
+    tn_document {
         bigint id PK
         varchar title
         text content
         varchar category
         timestamptz updated_at
     }
-    search_keyword_log {
+    tn_search_index {
+        bigint doc_id PK
+        varchar title
+        text tokens
+        varchar content_hash
+        timestamptz indexed_at
+    }
+    log_search_keyword {
         bigint id PK
         varchar keyword
         varchar analyzed_tokens
@@ -131,7 +146,7 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 -- ─────────────────────────────────────────────
 -- 1) 검색 대상 원본 테이블 (예: 문서. 실제 도메인에 맞게 교체)
 -- ─────────────────────────────────────────────
-CREATE TABLE document (
+CREATE TABLE tn_document (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     title       VARCHAR(500)  NOT NULL,
     content     TEXT          NOT NULL,
@@ -144,7 +159,7 @@ CREATE TABLE document (
 -- ─────────────────────────────────────────────
 -- 2) 단어사전 (Nori 사용자 사전: 신조어·고유명사·복합명사 분해)
 -- ─────────────────────────────────────────────
-CREATE TABLE dic_word (
+CREATE TABLE tn_dic_word (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     word        VARCHAR(100) NOT NULL,          -- 예: '아이폰15'
     segments    VARCHAR(200),                   -- 복합명사 분해형. 예: '아이폰 15' (NULL이면 단일어)
@@ -159,7 +174,7 @@ CREATE TABLE dic_word (
 -- ─────────────────────────────────────────────
 -- 3) 동의어사전 (그룹 방식: 같은 group_id = 서로 동의어)
 -- ─────────────────────────────────────────────
-CREATE TABLE dic_synonym (
+CREATE TABLE tn_dic_synonym (
     id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     group_id          BIGINT       NOT NULL,    -- 동의어 그룹 번호
     word              VARCHAR(100) NOT NULL,    -- 예: 그룹1 = {휴대폰, 핸드폰, 스마트폰}
@@ -168,12 +183,12 @@ CREATE TABLE dic_synonym (
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
     CONSTRAINT uq_dic_synonym UNIQUE (group_id, word)
 );
-CREATE INDEX idx_dic_synonym_word ON dic_synonym (word) WHERE enabled;
+CREATE INDEX idx_dic_synonym_word ON tn_dic_synonym (word) WHERE enabled;
 
 -- ─────────────────────────────────────────────
 -- 4) 금지어사전 (검색 차단 / 결과 마스킹)
 -- ─────────────────────────────────────────────
-CREATE TABLE dic_banned (
+CREATE TABLE tn_dic_banned (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     word        VARCHAR(100) NOT NULL,
     block_type  VARCHAR(20)  NOT NULL DEFAULT 'BLOCK',  -- BLOCK(검색차단) / MASK(결과숨김)
@@ -186,7 +201,7 @@ CREATE TABLE dic_banned (
 -- ─────────────────────────────────────────────
 -- 5) 검색 키워드 로그
 -- ─────────────────────────────────────────────
-CREATE TABLE search_keyword_log (
+CREATE TABLE log_search_keyword (
     id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     keyword         VARCHAR(300) NOT NULL,      -- 사용자가 입력한 원본
     analyzed_tokens VARCHAR(500),               -- 형태소 분석 결과 토큰
@@ -199,8 +214,8 @@ CREATE TABLE search_keyword_log (
     elapsed_ms      INT,
     searched_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_skl_keyword    ON search_keyword_log (keyword);
-CREATE INDEX idx_skl_searched   ON search_keyword_log (searched_at);
+CREATE INDEX idx_lsk_keyword    ON log_search_keyword (keyword);
+CREATE INDEX idx_lsk_searched   ON log_search_keyword (searched_at);
 ```
 
 ### 3.3 검색용 VIEW / MATERIALIZED VIEW (`V2__search_view.sql`)
@@ -210,44 +225,51 @@ CREATE INDEX idx_skl_searched   ON search_keyword_log (searched_at);
 
 ```sql
 -- (a) 색인 소스 VIEW: 어떤 데이터를 검색에 노출할지 정의
-CREATE VIEW v_search_source AS
+--     content_hash: 원문 변경 감지용. 색인 테이블의 값과 비교해 변경분만 재색인한다.
+CREATE VIEW vw_search_source AS
 SELECT d.id,
        d.title,
        d.content,
        d.category,
        d.updated_at,
-       d.title || ' ' || d.content AS full_text   -- 색인 대상 원문
-FROM document d
+       d.title || ' ' || d.content                                        AS full_text,
+       md5(d.title || '|' || d.content || '|' || coalesce(d.category,'')) AS content_hash
+FROM tn_document d
 WHERE d.status = 'ACTIVE';
 
--- (b) 검색 MATERIALIZED VIEW: 앱이 Nori로 분석한 토큰을 넣는 물리 테이블 방식
+-- (b) 검색 색인 테이블: 앱이 Nori로 분석한 토큰을 저장하는 물리 테이블
 --     ※ Nori 분석은 자바에서 수행하므로 MV 대신 "색인 테이블"로 운영하는 방식을 채택
-CREATE TABLE search_index (
+CREATE TABLE tn_search_index (
     doc_id       BIGINT PRIMARY KEY,
     title        VARCHAR(500) NOT NULL,
     summary      VARCHAR(300),                 -- 결과 목록용 요약
     category     VARCHAR(100),
     tokens       TEXT NOT NULL,                -- Nori 분석 결과 (공백 구분)
+    content_hash VARCHAR(32) NOT NULL,         -- 색인 당시 vw_search_source.content_hash
     search_vec   TSVECTOR GENERATED ALWAYS AS (to_tsvector('simple', tokens)) STORED,
     indexed_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_search_vec  ON search_index USING GIN (search_vec);
-CREATE INDEX idx_search_trgm ON search_index USING GIN (title gin_trgm_ops);  -- 자동완성용
+CREATE INDEX idx_search_vec  ON tn_search_index USING GIN (search_vec);
+CREATE INDEX idx_search_trgm ON tn_search_index USING GIN (title gin_trgm_ops);  -- 자동완성용
 
 -- (c) 인기 검색어 집계 MATERIALIZED VIEW (로그 기반, 주기 갱신)
-CREATE MATERIALIZED VIEW mv_popular_keyword AS
+CREATE MATERIALIZED VIEW vw_popular_keyword AS
 SELECT keyword,
        count(*)              AS search_count,
        max(searched_at)      AS last_searched_at
-FROM search_keyword_log
+FROM log_search_keyword
 WHERE searched_at >= now() - INTERVAL '7 days'
   AND is_blocked = false
 GROUP BY keyword
 ORDER BY search_count DESC
 LIMIT 100;
-CREATE UNIQUE INDEX uq_mv_popular ON mv_popular_keyword (keyword);
--- 갱신: REFRESH MATERIALIZED VIEW CONCURRENTLY mv_popular_keyword;
+CREATE UNIQUE INDEX uq_vw_popular ON vw_popular_keyword (keyword);
+-- 갱신: REFRESH MATERIALIZED VIEW CONCURRENTLY vw_popular_keyword;
 ```
+
+**해시 기반 변경 감지**: 색인 동기화 스케줄(매일 2회)이 `vw_search_source.content_hash`와
+`tn_search_index.content_hash`를 비교해 **신규·변경·삭제 건만** 처리한다. 변경 없는 문서는
+Nori 분석을 건너뛰므로 동기화 비용이 실제 변경량에만 비례한다. (상세: 4.4)
 
 > **왜 tsvector를 `simple` 설정으로 쓰는가**: 형태소 분석을 Nori(자바)가 이미 끝냈으므로
 > PostgreSQL은 스테밍 없이 토큰을 그대로 색인만 하면 된다. 검색 품질 로직은 전부 앱이 통제한다.
@@ -268,7 +290,7 @@ com.kingja.search
 │   └─ WebConfig.java
 ├─ analyzer/
 │   ├─ KoreanAnalyzer.java        # Nori 래퍼: 문자열 → 토큰 리스트
-│   └─ UserDictionaryLoader.java  # dic_word → Nori UserDictionary 변환·리로드
+│   └─ UserDictionaryLoader.java  # tn_dic_word → Nori UserDictionary 변환·리로드
 ├─ domain/                        # JPA 엔티티
 │   ├─ Document.java
 │   ├─ DicWord.java / DicSynonym.java / DicBanned.java
@@ -276,7 +298,7 @@ com.kingja.search
 │   └─ SearchKeywordLog.java
 ├─ repository/                    # Spring Data JPA + 네이티브 쿼리(FTS)
 ├─ service/
-│   ├─ IndexingService.java       # 색인 파이프라인 (문서 → 토큰 → search_index)
+│   ├─ IndexingService.java       # 색인 동기화 (해시 비교 → 변경분만 tn_search_index 반영)
 │   ├─ SearchService.java         # 검색 오케스트레이션
 │   ├─ SynonymService.java        # 동의어 확장 (캐시)
 │   ├─ BannedWordService.java     # 금지어 필터 (캐시)
@@ -293,7 +315,7 @@ com.kingja.search
 ### 4.2 Nori 분석기 구성
 
 ```java
-// dic_word 테이블 → Nori UserDictionary 포맷 변환 후 Analyzer 생성
+// tn_dic_word 테이블 → Nori UserDictionary 포맷 변환 후 Analyzer 생성
 // 포맷: "아이폰15" 또는 복합명사 "삼성전자 삼성 전자"
 UserDictionary userDict = UserDictionary.open(new StringReader(loadFromDb()));
 Analyzer analyzer = new KoreanAnalyzer(
@@ -315,7 +337,7 @@ Analyzer analyzer = new KoreanAnalyzer(
 3. 형태소 분석        Nori → [휴대폰, 케이스]                       ← span: search.analyze
 4. 동의어 확장        synonyms 캐시 조회 → (휴대폰 | 핸드폰 | 스마트폰)  ← span: search.expand
 5. tsquery 생성       (휴대폰 | 핸드폰 | 스마트폰) & 케이스
-6. FTS 실행           search_index에서 ts_rank 정렬 + 페이징          ← span: search.query
+6. FTS 실행           tn_search_index에서 ts_rank 정렬 + 페이징        ← span: search.query
 7. 로그 기록          @Async 비동기 저장 (traceId 함께 기록, 응답 지연 없음)
 ```
 
@@ -326,18 +348,76 @@ Analyzer analyzer = new KoreanAnalyzer(
 ```sql
 SELECT doc_id, title, summary, category,
        ts_rank(search_vec, query) AS rank
-FROM search_index,
+FROM tn_search_index,
      to_tsquery('simple', :tsquery) query
 WHERE search_vec @@ query
 ORDER BY rank DESC, doc_id DESC
 LIMIT :size OFFSET :offset;
 ```
 
-### 4.4 색인 파이프라인 (IndexingService)
+### 4.4 색인 동기화 파이프라인 (IndexingService) — 매일 2회 스케줄 + 해시 비교
 
-- **증분 색인**: 문서 저장/수정 시 이벤트(`@TransactionalEventListener`)로 해당 건만 upsert
-- **전체 재색인**: `v_search_source`를 청크(예: 500건)로 스트리밍 → 분석 → `search_index` 배치 upsert
-- **삭제 반영**: 원본 status=DELETED 시 색인에서 제거
+색인 테이블(`tn_search_index`)은 **스케줄러가 매일 2회** `vw_search_source`와 동기화한다.
+`content_hash`를 비교해 변경분만 처리하므로, 변경이 없으면 Nori 분석이 한 건도 실행되지 않는다.
+
+```java
+@Scheduled(cron = "0 0 6,18 * * *")   // 매일 06:00, 18:00 (설정: search.index.sync-cron)
+public void syncSearchIndex() { ... }
+```
+
+동기화 절차 (해시 diff 3단계):
+
+```sql
+-- 1) 신규·변경 대상 추출: 해시가 다르거나 색인에 없는 문서
+SELECT s.*
+FROM vw_search_source s
+LEFT JOIN tn_search_index i ON i.doc_id = s.id
+WHERE i.doc_id IS NULL OR i.content_hash <> s.content_hash;
+
+-- 2) 앱에서 Nori 분석 후 배치 upsert (청크 500건)
+INSERT INTO tn_search_index (doc_id, title, summary, category, tokens, content_hash)
+VALUES (...)
+ON CONFLICT (doc_id) DO UPDATE
+SET title = EXCLUDED.title, summary = EXCLUDED.summary, category = EXCLUDED.category,
+    tokens = EXCLUDED.tokens, content_hash = EXCLUDED.content_hash, indexed_at = now();
+
+-- 3) 삭제 반영: VIEW에서 사라진 문서(status=DELETED 등) 색인 제거
+DELETE FROM tn_search_index i
+WHERE NOT EXISTS (SELECT 1 FROM vw_search_source s WHERE s.id = i.doc_id);
+```
+
+운영 규칙:
+- 동기화 결과(신규/변경/삭제/스킵 건수, 소요시간)를 `index.rebuild` Timer와 로그로 기록
+- 중복 실행 방지: `@Scheduled`는 단일 인스턴스 기준. 인스턴스를 늘리게 되면 ShedLock 도입
+- **전체 재색인**(어드민 버튼): 해시 비교 없이 전량 재분석 — 사전(단어사전) 변경 후 색인 반영용.
+  `tn_search_index`의 content_hash가 갱신되므로 이후 스케줄 동기화와 자연스럽게 이어짐
+- 스케줄 사이에 즉시 반영이 필요하면 어드민의 "지금 동기화" 버튼으로 수동 트리거
+
+### 4.5 공통 설정 (application.yml)
+
+```yaml
+server:
+  servlet:
+    context-path: /search        # 모든 URL은 /search 하위로 서빙
+
+spring:
+  application:
+    name: search
+  task:
+    scheduling:
+      pool:
+        size: 2                  # 색인 동기화 + MV 갱신
+
+search:
+  index:
+    sync-cron: "0 0 6,18 * * *"  # 색인 동기화 (매일 2회)
+    chunk-size: 500
+```
+
+- context-path가 `/search`이므로 실제 접근 URL은 `http://host/search/`, `http://host/search/admin/...`
+- Thymeleaf 템플릿과 HTMX 속성의 URL은 반드시 `@{...}` 표현식 사용 → context path 자동 반영
+  (예: `hx-get="@{/api/autocomplete}"` 형태로 th:attr 처리)
+- Actuator를 관리 포트(9090)로 분리하면 context path의 영향을 받지 않음 → Prometheus 스크레이프 경로는 `:9090/actuator/prometheus` 유지
 
 ---
 
@@ -418,7 +498,7 @@ management:
 
 - `@Async` 로그 기록 스레드에도 trace 전파: `ContextPropagatingTaskDecorator`를 Executor에 등록
 - 검색 파이프라인 내부 구간별 span 분리: `@Observed(name = "search.analyze")` 등 단계별 어노테이션 → 어느 단계가 느린지 span 단위로 확인
-- search_keyword_log에 `trace_id VARCHAR(32)` 컬럼 추가 → 로그 테이블에서 앱 로그로 역추적 가능
+- log_search_keyword에 `trace_id VARCHAR(32)` 컬럼 추가 → 로그 테이블에서 앱 로그로 역추적 가능
 - (선택) 나중에 Zipkin을 띄우면 `zipkin-reporter-brave` 의존성만 추가하면 시각화 연동 완료
 
 ### 6.2 메트릭 (Actuator + Prometheus)
@@ -462,6 +542,8 @@ sample.stop(Timer.builder("search.query")
 
 ## 7. 화면 설계 (Thymeleaf + HTMX)
 
+> URL은 context path 제외 표기. 실제 경로는 `/search` 하위 (예: 검색 메인 = `/search/`).
+
 | 화면 | URL | HTMX 포인트 |
 |---|---|---|
 | 검색 메인 | `GET /` | 검색창 + 인기검색어 |
@@ -486,6 +568,8 @@ templates/
 
 ## 8. API 설계 요약
 
+> 모든 URL은 context path `/search` 하위로 서빙된다. (예: `GET /search/api/autocomplete`)
+
 | Method | URL | 설명 |
 |---|---|---|
 | GET | `/search?q=&category=&page=&size=` | 검색 (HTML fragment 응답) |
@@ -504,7 +588,7 @@ templates/
 | 단계 | 내용 | 산출물 |
 |---|---|---|
 | **1. 기반 구축** | 프로젝트 생성, Git 연동, Flyway 스키마(V1·V2), 엔티티/리포지토리 | 앱 기동 + 테이블 생성 확인 |
-| **2. 분석·색인** | Nori 래퍼, 사용자 사전 로딩, IndexingService, 샘플 데이터 색인 | 재색인 후 search_index 채워짐 |
+| **2. 분석·색인** | Nori 래퍼, 사용자 사전 로딩, IndexingService(해시 diff 동기화 + 스케줄), 샘플 데이터 색인 | 동기화 후 tn_search_index 채워짐 |
 | **3. 검색 코어** | 금지어 필터 → 동의어 확장 → tsquery → FTS 검색 + 로그 | `/search` 동작 |
 | **4. UI** | 검색 메인/결과(HTMX 무한스크롤), 자동완성 | 사용자 화면 완성 |
 | **5. 어드민** | 사전 3종 CRUD + 리로드(캐시 evict 연동), 재색인 버튼, 통계 | 운영 도구 완성 |
@@ -520,8 +604,10 @@ templates/
 1. **검색엔진 서버 없이 PostgreSQL FTS 채택** — 1인 운영 부담 최소화. 데이터 수백만 건 규모까지 GIN 인덱스로 충분.
 2. **Nori는 앱 내장 라이브러리** — Elasticsearch 없이 Lucene 분석기만 사용. 사전은 DB에서 로드해 무재기동 리로드.
 3. **tsvector는 `simple` 설정** — 형태소 분석 품질을 전적으로 앱(Nori + 사전)이 통제.
-4. **검색 테이블은 VIEW(소스 정의) + 색인 테이블(물리 저장) 조합** — 순수 MV로는 자바 형태소 분석을 끼워 넣을 수 없으므로, `v_search_source`(VIEW) → 앱 분석 → `search_index` 구조. 인기검색어는 MATERIALIZED VIEW.
+4. **검색 테이블은 VIEW(소스 정의) + 색인 테이블(물리 저장) 조합** — 순수 MV로는 자바 형태소 분석을 끼워 넣을 수 없으므로, `vw_search_source`(VIEW) → 앱 분석 → `tn_search_index` 구조. 인기검색어는 MATERIALIZED VIEW(`vw_popular_keyword`).
 5. **동의어는 검색 시점(query-time) 확장** — 색인 시점 확장 대비 사전 수정 시 재색인 불필요.
 6. **로그는 @Async 비동기 기록** — 검색 응답 속도에 영향 없음. trace 컨텍스트는 TaskDecorator로 전파.
 7. **사전은 Caffeine 캐시로 서빙** — 검색 트래픽이 사전 테이블을 직접 때리지 않음. 변경 시 커밋 후(evict → 리로드) 순서로 일관성 보장.
 8. **관측성은 처음부터 내장** — traceId 로그 패턴 + Prometheus 메트릭. 별도 APM 없이 "어느 검색이 왜 느린지"를 span과 Timer로 추적. Zipkin은 필요해질 때 reporter 의존성만 추가.
+9. **테이블 접두사 규칙** — 일반 `tn_` / 로그 `log_` / (M)VIEW `vw_` 로 용도를 이름에서 구분.
+10. **색인은 매일 2회 스케줄 동기화 + content_hash diff** — 실시간 색인 대신 예측 가능한 배치. md5 해시 비교로 변경분만 Nori 분석하므로 비용이 변경량에 비례. 즉시 반영은 어드민 수동 트리거로 보완.
