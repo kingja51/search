@@ -444,19 +444,44 @@ com.gonet.search
         └─ StatsAdmController.java        # 검색 통계
 ```
 
-### 4.2 Nori 분석기 구성
+### 4.2 Nori 분석기 구성 — 품사(POS) 기본 정책: 명사류만 색인·검색
+
+토큰 필터는 **keep-list 방식**으로 운영한다. 아래 품사만 색인·검색 대상으로 남기고 나머지는 전부 제거한다.
+
+| 품사 태그 | 의미 | 기본 포함 | 비고 |
+|---|---|---|---|
+| `NNG` | 일반명사 | ✅ | 검색의 핵심 대상 |
+| `NNP` | 고유명사 | ✅ | 회사명·인명·지명 (사용자 사전 단어 포함) |
+| `SL` | 외국어(영문) | ✅ | 영문 키워드·파일명 검색용 (예: PDF, FAQ) |
+| `SN` | 숫자 | ✅ | 모델명·연도 검색용 (예: 아이폰 15, 2026) |
+| `NNB`(의존명사), `NP`(대명사), `NR`(수사) | 기타 체언 | ❌ | 노이즈가 많아 기본 제외 |
+| `VV`/`VA`(동사·형용사), `MAG`(부사), `MM`(관형사) | 용언·수식언 | ❌ | 필요 시 설정으로 추가 |
+| `J*`(조사), `E*`(어미), `XS*`(접사), `S*`(기호) | 기능어·기호 | ❌ | 항상 제외 |
 
 ```java
 // tn_search_dic_word 테이블 → Nori UserDictionary 포맷 변환 후 Analyzer 생성
 // 포맷: "아이폰15" 또는 복합명사 "삼성전자 삼성 전자"
 UserDictionary userDict = UserDictionary.open(new StringReader(loadFromDb()));
+
+// 품사 keep-list (application.yml search.analyzer.keep-pos 로 외부화)
+Set<POS.Tag> keepTags = EnumSet.of(POS.Tag.NNG, POS.Tag.NNP, POS.Tag.SL, POS.Tag.SN);
+
+// Nori의 KoreanPartOfSpeechStopFilter는 "제거(stop)" 방식이므로,
+// 전체 품사에서 keep-list를 뺀 나머지를 stopTags로 넘긴다
+Set<POS.Tag> stopTags = EnumSet.allOf(POS.Tag.class);
+stopTags.removeAll(keepTags);
+
 Analyzer analyzer = new KoreanAnalyzer(
     userDict,
     KoreanTokenizer.DecompoundMode.MIXED,   // 복합명사: 원형+분해형 모두 색인
-    stopTags,                                // 조사·어미 등 제거 품사
+    stopTags,                                // keep-list 외 품사 전부 제거
     false
 );
 ```
+
+- **색인과 검색에 같은 Analyzer를 사용** — 품사 정책이 다르면 토큰이 어긋나 검색이 실패하므로 반드시 동일 인스턴스 공유
+- 사용자 사전(tn_search_dic_word) 단어는 NNG/NNP로 등록되므로 keep-list에 항상 걸린다 (pos_tag 기본값 NNG)
+- "검색이 되어야 할 단어가 빠진다" 신고 시 대응 순서: ① 사용자 사전 등록(NNG) → ② 그래도 부족하면 keep-pos 설정에 품사 추가 후 전체 재색인
 
 - 사전 수정 시 `DictionaryService`가 **Analyzer를 재생성**하여 교체 (volatile 참조 스왑) → 재기동 불필요
 - 단, 사전 변경 후 기존 색인에 반영하려면 **전체 재색인 필요** → 어드민에 "전체 재색인" 버튼 제공
@@ -550,6 +575,8 @@ search:
   index:
     sync-cron: "0 0 6,18 * * *"  # 색인 동기화 (매일 2회)
     chunk-size: 500
+  analyzer:
+    keep-pos: NNG, NNP, SL, SN   # 색인·검색 대상 품사 (변경 시 전체 재색인 필요)
 ```
 
 - context-path가 `/search`이므로 실제 접근 URL은 `http://host/search/`, `http://host/search/adm/...`
@@ -761,3 +788,4 @@ templates/
 10. **색인은 매일 2회 스케줄 동기화 + content_hash diff** — 실시간 색인 대신 예측 가능한 배치. md5 해시 비교로 변경분만 Nori 분석하므로 비용이 변경량에 비례. 즉시 반영은 어드민 수동 트리거로 보완.
 11. **색인 PK는 (doc_type, doc_id) 복합키** — 도메인별 id 충돌 없이 통합 색인. 검색 결과의 이동 경로는 색인에 저장된 `link_url` 사용.
 12. **관리자 화면·권한은 추후 개발** — v1.0은 사용자 검색 기능에 집중. 사전 관리는 당분간 SQL 직접 실행, 색인은 스케줄 자동 동기화로 운영. URL·컨트롤러 설계만 확정해 둠.
+13. **품사는 keep-list 기본 정책** — NNG·NNP·SL·SN만 색인·검색 (`search.analyzer.keep-pos`로 외부화). 색인·검색이 동일 Analyzer를 공유해 토큰 불일치를 원천 차단. keep-pos 변경 시 전체 재색인 필수.
