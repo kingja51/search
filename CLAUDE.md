@@ -10,7 +10,7 @@
 
 - Spring Boot 3.5.9 + Java 21 + Maven
 - **데이터 액세스: MyBatis (XML 매퍼) — JPA 사용 금지**
-- PostgreSQL 18 (FTS: tsvector 'simple' + GIN, pg_trgm) · Flyway (V1~V4)
+- PostgreSQL 18 (FTS: tsvector 'simple' + GIN, pg_trgm) · Flyway (V1~V5). DB 객체 소유자는 search_user — DDL 마이그레이션(COMMENT 등)은 소유자만 가능하므로 새 객체를 postgres로 만들었다면 소유권 이전 필요(db/grant_search_user.sql)
 - Thymeleaf + Layout Dialect + HTMX (SPA 아님, fragment 부분 렌더링)
 - 스타일: **Tailwind CSS v4 CDN** (`@tailwindcss/browser@4`, 레이아웃 head에 로드) — 인라인 style 대신 Tailwind 클래스 사용. 테마 색상은 `@theme`의 `--color-primary`(#2563eb) → `text-primary`/`bg-primary`
 - Lucene `lucene-analysis-nori` (형태소 분석은 자바 레이어에서 수행)

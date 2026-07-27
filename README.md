@@ -26,7 +26,7 @@ Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreS
 
 ## 문서
 
-- **[설계서 (DESIGN.md)](DESIGN.md)** — DB 스키마(Flyway V1~V4), 아키텍처, 검색 파이프라인, 화면·API 명세, 설계 결정 22항
+- **[설계서 (DESIGN.md)](DESIGN.md)** — DB 스키마(Flyway V1~V5), 아키텍처, 검색 파이프라인, 화면·API 명세, 설계 결정 24항
 - **[사용자 검색 매뉴얼 (docs/user-manual.md)](docs/user-manual.md)** — 화면 구성, 기본/상세검색, 결과내 재검색, FAQ
 - **[관리자 화면 매뉴얼 (docs/admin-manual.md)](docs/admin-manual.md)** — 사전 4종 관리, 색인 관리, 통계·모니터, 운영 워크플로
 - **[검색 대상(VIEW) 추가 가이드 (docs/add-search-source.md)](docs/add-search-source.md)** — 새 테이블을 검색에 편입하는 절차
@@ -39,7 +39,7 @@ Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreS
    - `.env.example` → `.env` 복사 후 수정하고 환경 변수로 주입 (파일 내 안내 참조)
    - `src/main/resources/application-local.yml.example` → `application-local.yml` 복사 후 수정
 3. 실행: `mvn spring-boot:run` → http://localhost:8080/search/
-   (Flyway가 **search 스키마**를 만들고 V1~V4를 자동 적용, 기동 직후 샘플 데이터 색인)
+   (Flyway가 **search 스키마**를 만들고 V1~V5를 자동 적용, 기동 직후 샘플 데이터 색인)
 
 앱 없이 DB만 구성하려면: [db/search_full_setup.sql](db/search_full_setup.sql)
 (스키마 + 테이블/VIEW + 샘플 INSERT 통합 정리본 — Flyway로 관리할 DB에는 실행 금지)

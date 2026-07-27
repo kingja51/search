@@ -59,7 +59,7 @@ Elasticsearch 같은 별도 검색 서버 없이 **PostgreSQL 18의 Full-Text Se
 | View | Thymeleaf + Layout Dialect + HTMX + **Tailwind CSS v4 (CDN)** | 레이아웃: `templates/layout/search/`. Tailwind는 `@tailwindcss/browser@4` CDN + `@theme`(--color-primary). 운영 전환 시 빌드 방식 검토 |
 | 캐시 | Caffeine (Spring Cache) | 사전·인기/추천검색어·자동완성 캐시, 통계 노출 |
 | 관측성 | Actuator + Micrometer(Prometheus) + Tracing(Brave) | 메트릭 수집, 로그 traceId/spanId 연동 |
-| 마이그레이션 | Flyway | 스키마 버전 관리 (V1~V4) |
+| 마이그레이션 | Flyway | 스키마 버전 관리 (V1~V5 — V5: 테이블·컬럼 주석) |
 | 기타 | Lombok, spring-boot-devtools | |
 
 ### 주요 Maven 의존성
