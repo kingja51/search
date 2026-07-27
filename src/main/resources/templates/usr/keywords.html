@@ -25,6 +25,13 @@
     </ol>
 </div>
 
+<!-- 추천 검색어: 상단 파란 바용 (흰색 링크) -->
+<th:block th:fragment="recommendBar">
+    <a th:each="r : ${recommend}" th:href="@{/result(q=${r.keyword})}"
+       class="px-2 py-1 text-[13px] text-white/90 hover:text-white hover:underline whitespace-nowrap"
+       th:text="${r.keyword}">추천어</a>
+</th:block>
+
 <!-- 인기 검색어 드롭다운: 검색창 포커스(빈 입력) 시 노출 -->
 <div th:fragment="popularDropdown" th:if="${!#lists.isEmpty(popular)}"
      class="bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">

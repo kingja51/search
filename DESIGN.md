@@ -1084,8 +1084,8 @@ templates/
 
 | 화면 | URL | 담당 Controller | HTMX 포인트 |
 |---|---|---|---|
-| 검색 메인 | `GET /` | SearchUsrController | 검색창 + 인기검색어 + **추천 검색어**(관리자 등록, display_order 순) |
-| 검색 결과 | `GET /result?q=&type=&category=&sort=&period=&page=` | SearchUsrController | 도메인 탭(전체/컨텐츠/파일/게시판/메뉴) + 탭별 **카테고리 필터** + **정렬 토글**(정확도/최신순) + **기간 필터**(실시간 6h/1일/이번주/이번달/전체), `hx-get` 부분 교체, 무한스크롤(`hx-trigger="revealed"`) |
+| 통합검색 (메인) | `GET /` → `/result` 리다이렉트 | SearchUsrController | **포털형 단일 화면** (공공기관 통합검색 구성) — 아래 참조 |
+| 검색 결과 | `GET /result?q=&type=&category=&sort=&period=&page=` | SearchUsrController | 상단 검색바(검색 대상 select + 상세검색 버튼 + **결과내 재검색 체크박스**) → 파란 **추천검색어 바** → 결과 건수 메시지("총 N건") → **3단 레이아웃**: 왼쪽 카테고리(통합검색/컨텐츠/파일/게시판/메뉴 + 건수) · 가운데 결과(그룹 뷰/무한스크롤, 정렬·기간·카테고리 필터) · 오른쪽 인기 검색어. **검색어가 없으면 가운데에 검색 기능 소개**(연산자·상세검색·편의 기능 안내) 표시 |
 | 상세검색 패널 | (검색 결과 화면 내 토글) | SearchUsrController | 시작일~종료일(dateFrom/dateTo), **결과 내 재검색**(qPrev 칩 + 제거), AND/OR 라디오 — 조건은 전부 URL 쿼리스트링 유지 |
 | 자동완성 | `GET /api/autocomplete?q=` | AutocompleteApiController | `hx-trigger="keyup changed delay:300ms"` → 드롭다운 fragment |
 | 인기 검색어 | `GET /api/keyword/popular` | KeywordApiController | 메인 로드 시 1회 (MV 10분 자동 갱신) |

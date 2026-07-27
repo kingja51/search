@@ -32,6 +32,9 @@ public class SearchCondition {
 
     private String qPrevRemove;                 // 칩 × 클릭: 제거할 qPrev 항목 (서버에서 제거 처리)
 
+    private boolean within = false;             // "결과내 재검색" 체크박스
+    private String withinBase;                  // 체크 시 qPrev로 쌓을 직전 검색어 (hidden)
+
     private int page = 0;
     private int size = 10;
 
@@ -41,6 +44,16 @@ public class SearchCondition {
             qPrev.removeIf(qPrevRemove::equals);
             qPrevRemove = null;
         }
+    }
+
+    /** "결과내 재검색" 체크: 직전 검색어(withinBase)를 qPrev에 누적 (컨트롤러 진입 시 호출) */
+    public void applyWithin() {
+        if (within && withinBase != null && !withinBase.isBlank()
+                && !withinBase.equals(q) && !qPrev.contains(withinBase)) {
+            qPrev.add(withinBase);
+        }
+        within = false;
+        withinBase = null;
     }
 
     public boolean isAllTab() {

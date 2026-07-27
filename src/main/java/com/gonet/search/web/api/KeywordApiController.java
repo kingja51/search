@@ -31,11 +31,12 @@ public class KeywordApiController {
         return "usr/keywords :: popular";
     }
 
-    /** 추천 검색어 (관리자 등록, 노출기간·순서 적용) */
+    /** 추천 검색어 (관리자 등록, 노출기간·순서 적용). style=bar → 상단 파란 바용 fragment */
     @GetMapping("/recommend")
-    public String recommend(Model model) {
+    public String recommend(@org.springframework.web.bind.annotation.RequestParam(value = "style", required = false) String style,
+                            Model model) {
         model.addAttribute("recommend", recommendKeywordService.displayable());
-        return "usr/keywords :: recommend";
+        return "bar".equals(style) ? "usr/keywords :: recommendBar" : "usr/keywords :: recommend";
     }
 
     /** 내 검색어 (session 우선 → IP 폴백, 파라미터 없음) */
