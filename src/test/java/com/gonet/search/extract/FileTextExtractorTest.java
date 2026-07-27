@@ -55,6 +55,38 @@ class FileTextExtractorTest {
     }
 
     @Test
+    @DisplayName("HWPX 파일 본문을 추출한다 (hwpxlib 생성 → 추출 라운드트립)")
+    void extractHwpx() throws Exception {
+        kr.dogfoot.hwpxlib.object.HWPXFile hwpx =
+                kr.dogfoot.hwpxlib.tool.blankfilemaker.BlankFileMaker.make();
+        hwpx.sectionXMLFileList().get(0).paras().iterator().next()
+                .addNewRun().addNewT().addText("한글 HWPX 추출 테스트 문서입니다");
+        Path file = tempDir.resolve("sample.hwpx");
+        kr.dogfoot.hwpxlib.writer.HWPXWriter.toFilepath(hwpx, file.toString());
+
+        String text = extractor.extract(file.toFile(), "HWPX");
+
+        assertThat(text).contains("한글 HWPX 추출 테스트 문서입니다");
+    }
+
+    @Test
+    @DisplayName("HWP 파일 본문을 추출한다 (hwplib 생성 → 추출 라운드트립)")
+    void extractHwp() throws Exception {
+        kr.dogfoot.hwplib.object.HWPFile hwp =
+                kr.dogfoot.hwplib.tool.blankfilemaker.BlankFileMaker.make();
+        kr.dogfoot.hwplib.object.bodytext.paragraph.Paragraph paragraph =
+                hwp.getBodyText().getSectionList().get(0).getParagraph(0);
+        paragraph.createText();
+        paragraph.getText().addString("한글 HWP 추출 테스트 문서입니다");
+        Path file = tempDir.resolve("sample.hwp");
+        kr.dogfoot.hwplib.writer.HWPWriter.toFile(hwp, file.toString());
+
+        String text = extractor.extract(file.toFile(), "HWP");
+
+        assertThat(text).contains("한글 HWP 추출 테스트 문서입니다");
+    }
+
+    @Test
     @DisplayName("선언되지 않은 확장자는 예외를 던진다")
     void rejectsUndeclaredExtension() {
         File file = tempDir.resolve("run.exe").toFile();
