@@ -4,7 +4,7 @@
 
 ## 기술 스택
 
-Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreSQL 18 · Thymeleaf + HTMX · Lucene Nori · Caffeine · Actuator/Prometheus/Tracing(Brave) · Flyway
+Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreSQL 18 · Thymeleaf + HTMX · Lucene Nori · Caffeine · Actuator/Prometheus/Tracing(Brave) · Flyway · Apache Tika + hwplib/hwpxlib(파일 텍스트 추출)
 
 ## 핵심 구조
 
@@ -20,13 +20,15 @@ Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreS
 
 - 통합검색: 전체 탭 카테고리별 그룹 10건 + "더보기" 상세 페이징, 무한스크롤
 - 상세검색: 시작일~종료일, 결과 내 재검색(칩), AND/OR
-- 사전 관리: 단어사전(Nori 사용자 사전)·동의어·금지어·추천 검색어 (DB 테이블)
-- 자동완성(pg_trgm), 인기 검색어(MV 10분 자동 갱신), 내 검색어(세션/IP)
+- 어드민: 사전 4종 관리(단어·동의어·금지어·추천어, 변경 즉시 리로드)·색인 관리·검색 통계·모니터 대시보드
+- 자동완성(pg_trgm), 인기 검색어(기간탭·MV 10분 자동 갱신), 내 검색어(세션/IP)
+- **파일 텍스트 추출**: DOC~CSV(Tika)+HWP/HWPX(hwplib) 본문을 매일 01시/수동 버튼으로 색인 반영
+- **개인정보 마스킹(색인 시점)**: 주민·외국인등록번호(전체)·카드·휴대폰·이메일·생년월일(라벨 기반)
 - 전 테이블 감사 컬럼 표준(created/updated × at·ip·by), traceId 로그 연동, Prometheus 메트릭
 
 ## 문서
 
-- **[설계서 (DESIGN.md)](DESIGN.md)** — DB 스키마(Flyway V1~V5), 아키텍처, 검색 파이프라인, 화면·API 명세, 설계 결정 24항
+- **[설계서 (DESIGN.md)](DESIGN.md)** — DB 스키마(Flyway V1~V6), 아키텍처, 검색 파이프라인, 화면·API 명세, 설계 결정 24항
 - **[사용자 검색 매뉴얼 (docs/user-manual.md)](docs/user-manual.md)** — 화면 구성, 기본/상세검색, 결과내 재검색, FAQ
 - **[관리자 화면 매뉴얼 (docs/admin-manual.md)](docs/admin-manual.md)** — 사전 4종 관리, 색인 관리, 통계·모니터, 운영 워크플로
 - **[검색 대상(VIEW) 추가 가이드 (docs/add-search-source.md)](docs/add-search-source.md)** — 새 테이블을 검색에 편입하는 절차
@@ -39,7 +41,7 @@ Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreS
    - `.env.example` → `.env` 복사 후 수정하고 환경 변수로 주입 (파일 내 안내 참조)
    - `src/main/resources/application-local.yml.example` → `application-local.yml` 복사 후 수정
 3. 실행: `mvn spring-boot:run` → http://localhost:8080/search/
-   (Flyway가 **search 스키마**를 만들고 V1~V5를 자동 적용, 기동 직후 샘플 데이터 색인)
+   (Flyway가 **search 스키마**를 만들고 V1~V6을 자동 적용, 기동 직후 샘플 데이터 색인)
 
 앱 없이 DB만 구성하려면: [db/search_full_setup.sql](db/search_full_setup.sql)
 (스키마 + 테이블/VIEW + 샘플 INSERT 통합 정리본 — Flyway로 관리할 DB에는 실행 금지)
@@ -58,10 +60,11 @@ Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreS
 
 | 작업 | 방법 |
 |---|---|
-| 사전(단어/동의어/금지어/추천어) 변경 | SQL로 수정 → 앱 재시작(기동 시 사전 로드·캐시 재구성). 무재기동 리로드는 어드민(추후)에서 `DictionaryService.reloadDictionaries()` 연결 예정 |
-| 색인 갱신 | 자동: 매일 06:00/18:00 해시 diff + 기동 시 1회. 품사/단어사전 변경 후엔 전체 재색인(`IndexingService.rebuildAll`, 어드민 추후) |
+| 사전(단어/동의어/금지어/추천어) 변경 | 어드민 `/adm/dic/*`에서 등록·토글·삭제 — 저장 즉시 캐시 evict + Nori 리로드(무재기동). SQL 직접 수정 시엔 [사전 리로드] 버튼 |
+| 색인 갱신 | 자동: 매일 06:00/18:00 해시 diff + 기동 시 1회. 단어사전·품사 변경 후엔 어드민 [전체 재색인] |
+| 파일 본문 추출 | 자동: 매일 01:00(최근 3일) + 어드민 [파일 추출] 버튼(최근 1개월). 반영 방식은 `search.extract.update-origin` (기본 false=색인만) |
 | 인기 검색어 | 로그 → MV 10분 자동 갱신 → 캐시 1분. 수동 갱신: `REFRESH MATERIALIZED VIEW CONCURRENTLY search.vw_search_popular_keyword;` |
-| 검색 품질 점검 | `log_search_keyword`에서 `result_count = 0` 키워드 조회 → 단어/동의어 사전 보강 |
+| 검색 품질 점검 | 어드민 `/adm/stats`의 무결과 검색어 TOP20 → 단어/동의어 사전 보강 |
 
 ## 상태
 
@@ -72,6 +75,9 @@ Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreS
 - [x] 4단계: UI (위젯·자동완성·상세검색 패널·무한스크롤, Tailwind v4)
 - [x] 5단계: 캐시·관측성 (Caffeine 5종 + 커스텀 메트릭 + 단계별 span)
 - [x] **전체 실동작 검증** — PostgreSQL 18 (postgres DB / search 스키마 / search_user), 검색·동의어 하이라이트·금지어·자동완성·인기/추천 검색어·메트릭 확인 (2026-07)
-- [x] 6단계: 마무리 — 인덱스 EXPLAIN 검증, 내장 Chart.js 모니터 대시보드(/monitor), 운영 문서 (**v1.0**)
+- [x] 6단계: 마무리 — 인덱스 EXPLAIN 검증, 내장 Chart.js 모니터 대시보드(/adm/monitor), 운영 문서 (**v1.0**)
 - [x] 어드민 — 사전 4종 관리(자동 리로드)·색인 관리·검색 통계 (`/search/adm/dic/word`)
+- [x] 개인정보 마스킹 — 색인 시점 적용 (주민·외국인등록번호/카드/휴대폰/이메일/생년월일 라벨 기반)
+- [x] 파일 텍스트 추출 — Tika + hwplib/hwpxlib, 스케줄(01시·3일)/수동(1개월), update-origin 선택
+- [x] 코드 리뷰 2회 반영 — 1차 8건 + 2차 6건(색인 공유 락, 자동완성 이스케이프 등)
 - [ ] (추후) Spring Security 권한 (/adm/** 접근 제한)

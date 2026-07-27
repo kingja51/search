@@ -3,17 +3,18 @@
 > 설계 기준: [DESIGN.md](DESIGN.md) (v2.0, tag: design-v2.0) · 작업 규칙: [CLAUDE.md](CLAUDE.md)
 > 상태 표기: ✅ 완료 · 🔄 진행 중 · ⏸ 대기 · 📌 추후
 
-## 현재 상태 요약 (2026-07-27)
+## 현재 상태 요약 (2026-07-28)
 
-- **완료**: 설계 확정 → 1~5단계 구현 → **전체 실동작 검증 완료 (2026-07-27)**
-- **적용 스택 변화**: Lucene 10.4.0 · Tailwind CSS v4 CDN
+- **완료**: 설계 확정 → 1~6단계(v1.0) → 어드민 → 코드 리뷰 1차 8건 → 개인정보 마스킹 →
+  파일 텍스트 추출(V6) → 코드 리뷰 2차 6건 — 전 구간 실동작 검증·푸시 완료
+- **적용 스택 변화**: Lucene 10.4.0 · Tailwind CSS v4 CDN · Tika 3.3.1 + hwplib/hwpxlib
 - **검증 결과** (postgres DB / search 스키마 / search_user 최소권한 계정):
   - 기동: Flyway baseline(V4) 인정 → 정상 부팅, 색인 동기화 36건(변경 없으면 diff 0건 확인)
   - 검색: "휴대폰" → 동의어(핸드폰·스마트폰) `<mark>` 하이라이트 ✓ · 금지어 차단 ✓ · 검색 로그(토큰·IP·traceId) ✓
   - 위젯: 자동완성 10건 ✓ · 추천 검색어 9건(기간 필터 정확) ✓ · 인기 검색어(로그→MV→캐시 순환) ✓
   - 관측성: 단계별 span 4종 + search.query Timer(doc_type·blocked) + 캐시 히트율 + index.documents 게이지 ✓
     (span과 Timer의 search.query 이름 충돌 발견 → span을 search.fts로 분리)
-- **다음 작업**: 6단계(마무리 — 인덱스 튜닝·Grafana·README 보강·v1.0 태그)
+- **다음 작업**: 📌 Spring Security 권한(/adm/** 접근 제한 + 감사자 ID 교체)만 남음
 
 ---
 
@@ -27,7 +28,7 @@
 | 도메인·매퍼 | ✅ | 도메인 POJO 11종, 매퍼 6종 + XML (mybatis/mapper/) |
 | 레이아웃·메인 화면 | ✅ | layout/search/default.html, usr/main.html, SearchUsrController |
 | JPA → MyBatis 전환 | ✅ | 사용자 지시로 전환 (JPA 사용 금지) |
-| 앱 기동 + 스키마 적용 검증 | ⏸ | **PostgreSQL 18 준비 후** — `mvn spring-boot:run` → Flyway V1~V4 적용 확인 |
+| 앱 기동 + 스키마 적용 검증 | ✅ | 수동 설치 DB + Flyway baseline(V4)로 정상 부팅 확인 (2026-07-27) |
 
 ## 2단계: 분석·색인 ✅
 
@@ -40,7 +41,7 @@
 | 스케줄 | ✅ | 매일 2회(06:00/18:00) + 기동 시 1회(sync-on-startup) |
 | 매퍼 | ✅ | SearchSourceMapper(diff/전체), SearchIndexMapper(upsertBatch/deleteOrphans) |
 | 분석기 단위 테스트 | ✅ | KoreanAnalyzerTest 4건 통과 (품사 필터·복합명사·reload·빈입력) |
-| 샘플 데이터 색인 실검증 | ⏸ | **PostgreSQL 준비 후** — 기동 → tn_search_index 38건 내외 확인 |
+| 샘플 데이터 색인 실검증 | ✅ | 기동 → 색인 36건 동기화 확인 (2026-07-27) |
 
 ## 3단계: 검색 코어 ✅
 
@@ -54,7 +55,7 @@
 | KeywordLogService | ✅ | @Async 적재(검색자 IP 선세팅), MV 10분 갱신 스케줄, 인기·내 검색어(session→IP 폴백) |
 | AuditInterceptor 보완 | ✅ | created_ip/by가 이미 세팅된 경우 유지 — @Async 로그의 검색자 IP 유실 방지 |
 | SearchUsrController /result | ✅ | 조건 9종 바인딩(SearchCondition), 기본 결과 화면(usr/results.html — 4단계에서 HTMX 고도화) |
-| 검색 실동작 검증 | ⏸ | **PostgreSQL 준비 후** — /result?q=휴대폰 → 동의어(핸드폰) 결과·하이라이트 확인 |
+| 검색 실동작 검증 | ✅ | /result?q=휴대폰 → 동의어(핸드폰) 결과·하이라이트 확인 (2026-07-27) |
 
 ## 4단계: UI ✅
 
@@ -81,7 +82,7 @@
 | 커스텀 메트릭 | ✅ | search.query Timer(doc_type·blocked) / search.results Summary / search.blocked·noresult Counter / index.sync Timer(mode) / keyword.popular.refresh Timer / index.documents Gauge(도메인별, DB 다운 시 -1) |
 | 단계별 span | ✅ | Observation API로 search.analyze/expand/query/highlight 분리 (SearchService 파이프라인 재구성) |
 | trace 전파 | ✅ | ContextPropagatingTaskDecorator 빈 — @Async 로그 스레드로 traceId 전파 |
-| 실동작 검증 | ⏸ | **PostgreSQL 준비 후** — :9090/actuator/prometheus에서 캐시 히트율·search.query 확인 |
+| 실동작 검증 | ✅ | :9090/actuator/prometheus에서 캐시 히트율·search.query 확인 (2026-07-27) |
 
 ## 6단계: 마무리 ✅ (v1.0)
 
@@ -102,6 +103,18 @@
 | 관리자 레이아웃 | ✅ | layout/search/admin.html (다크 사이드 메뉴), 사용자 헤더에 "관리" 링크 |
 | CRUD 검증 | ✅ | 등록(guest/IP 감사) → 토글(updated_by=admin) → 삭제 실동작 확인 |
 | 비고 | | 인라인 편집 대신 폼 제출(PRG) 방식 채택 — 수정은 삭제 후 재등록. 재색인 진행률 폴링은 대량 데이터 필요 시 개선 |
+
+## 품질·보강 (어드민 이후) ✅ — 2026-07-28
+
+| 작업 | 상태 | 산출물 |
+|---|---|---|
+| 코드 리뷰 1차 8건 | ✅ | 새 검색 시 qPrev 초기화, 캐시 자기호출 제거, 중복등록 배너, size/page/qPrev 클램프, XFF 미신뢰 기본, Analyzer 리로드 close 제거, 서로게이트 절단 보정, link_url 스킴 검증 |
+| doc_type 단일 소스화 | ✅ | `search.doc-types` yml 맵(SearchDocTypes) — 새 검색 VIEW 추가 = Flyway VIEW + yml 한 줄 |
+| 개인정보 마스킹 | ✅ | MaskingUtil **색인 시점** 적용 — 주민·외국인등록번호(전체), 카드, 휴대폰, 이메일(2자 이하 로컬파트 전체), 생년월일(라벨 문맥 기반). 뷰어는 표시 시점 보조. 패턴 변경 시 전체 재색인 |
+| 테이블 주석 (V5) | ✅ | COMMENT ON 전 테이블 — 소유권 search_user 이전(grant_search_user.sql) |
+| 파일 텍스트 추출 (V6) | ✅ | origin_path 컬럼 + FileExtractService — Tika(DOC~CSV)+hwplib/hwpxlib(HWP/HWPX), 스케줄 01시(최근 3일)/수동 버튼(최근 1개월), 마스킹 후 반영. `update-origin`(기본 false=색인만, true=tn_file.extract_text 저장→동기화 연쇄) |
+| 코드 리뷰 2차 6건 | ✅ | **IndexJobLock 공유 락**(동기화·재색인·추출 동시 실행 방지 + 어드민 안내 배너), 추출 본문 원본 저장 옵션, 이메일 짧은 로컬파트, 외국인등록번호, 자동완성 ILIKE 이스케이프, tsquery 빈 lexeme 방어 |
+| 운영 문서 | ✅ | docs/user-manual.md · admin-manual.md · add-search-source.md · db-tuning.md |
 
 ## 📌 추후
 
