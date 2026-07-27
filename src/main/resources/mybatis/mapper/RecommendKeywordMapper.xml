@@ -3,14 +3,41 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.gonet.search.mapper.RecommendKeywordMapper">
 
+    <sql id="columns">
+        id, keyword, display_order, start_date, end_date, enabled, memo,
+        created_at, created_ip, created_by, updated_at, updated_ip, updated_by
+    </sql>
+
     <select id="findDisplayable" resultType="RecommendKeyword">
-        SELECT id, keyword, display_order, start_date, end_date, enabled, memo,
-               created_at, created_ip, created_by, updated_at, updated_ip, updated_by
+        SELECT <include refid="columns"/>
         FROM tn_search_recommend_keyword
         WHERE enabled = true
           AND (start_date IS NULL OR start_date &lt;= #{today})
           AND (end_date   IS NULL OR end_date   &gt;= #{today})
         ORDER BY display_order ASC, id ASC
     </select>
+
+    <select id="findAll" resultType="RecommendKeyword">
+        SELECT <include refid="columns"/>
+        FROM tn_search_recommend_keyword
+        ORDER BY display_order ASC, id ASC
+    </select>
+
+    <insert id="insert" parameterType="RecommendKeyword" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO tn_search_recommend_keyword (keyword, display_order, start_date, end_date, enabled, memo,
+                                                 created_at, created_ip, created_by, updated_at)
+        VALUES (#{keyword}, #{displayOrder}, #{startDate}, #{endDate}, #{enabled}, #{memo},
+                #{createdAt}, #{createdIp}, #{createdBy}, #{updatedAt})
+    </insert>
+
+    <update id="toggleEnabled">
+        UPDATE tn_search_recommend_keyword
+        SET enabled = NOT enabled, updated_at = now(), updated_ip = #{ip}, updated_by = 'admin'
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM tn_search_recommend_keyword WHERE id = #{id}
+    </delete>
 
 </mapper>

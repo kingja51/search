@@ -78,6 +78,25 @@ public class KeywordLogService {
         return logMapper.findRecentByIp(clientIp, limit);
     }
 
+    /* ── 검색 통계 (어드민) ── */
+
+    public List<com.gonet.search.dto.KeyCount> dailyCounts(int days) {
+        return logMapper.countByDay(days);
+    }
+
+    public List<com.gonet.search.dto.KeyCount> noResultKeywords(int days, int limit) {
+        return logMapper.findNoResult(days, limit);
+    }
+
+    public java.util.Map<String, Object> statsSummary(int days) {
+        return logMapper.statsSummary(days);
+    }
+
+    /** 인기 검색어 (최근 N일 기준, 통계 화면용) */
+    public List<KeywordStat> popularSinceDays(int days, int limit) {
+        return logMapper.findPopularSince(java.time.OffsetDateTime.now().minusDays(days), limit);
+    }
+
     /** 인기 검색어 자동 생성 — MV 10분 주기 갱신 (실패 시 다음 주기에 자동 재시도) */
     @Scheduled(cron = "${search.keyword.popular-refresh-cron}")
     public void refreshPopularKeywords() {

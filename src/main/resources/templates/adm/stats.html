@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/search/admin}">
+<head>
+    <title>검색 통계</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-lg font-bold">검색 통계</h1>
+        <form th:action="@{/adm/stats}" method="get" class="flex items-center gap-2 text-[13px]">
+            <select name="days" onchange="this.form.submit()"
+                    class="border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
+                <option value="7" th:selected="${days == 7}">최근 7일</option>
+                <option value="30" th:selected="${days == 30}">최근 30일</option>
+                <option value="90" th:selected="${days == 90}">최근 90일</option>
+            </select>
+        </form>
+    </div>
+
+    <!-- 요약 -->
+    <div class="grid grid-cols-3 gap-3 mb-5">
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <p class="text-[11px] text-gray-400">총 검색</p>
+            <p class="text-xl font-bold" th:text="${summary['total']}">0</p>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <p class="text-[11px] text-gray-400">무결과 검색</p>
+            <p class="text-xl font-bold text-amber-600" th:text="${summary['noresult']}">0</p>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <p class="text-[11px] text-gray-400">금지어 차단</p>
+            <p class="text-xl font-bold text-red-600" th:text="${summary['blocked']}">0</p>
+        </div>
+    </div>
+
+    <!-- 일별 검색량 (최근 14일, 텍스트 막대) -->
+    <div class="bg-white border border-gray-200 rounded-xl p-4 mb-5">
+        <h2 class="text-sm font-semibold mb-3">일별 검색량 (최근 14일)</h2>
+        <p th:if="${#lists.isEmpty(daily)}" class="text-[12px] text-gray-400">데이터가 없습니다.</p>
+        <div th:unless="${#lists.isEmpty(daily)}" class="space-y-1.5 text-[12px]">
+            <div th:each="d : ${daily}" class="flex items-center gap-2">
+                <span class="w-12 text-gray-400" th:text="${d.key}">07-27</span>
+                <div class="flex-1 bg-gray-100 rounded h-4 overflow-hidden">
+                    <div class="bg-primary/70 h-4"
+                         th:style="'width:' + ${dailyMax > 0 ? d.count * 100.0 / dailyMax : 0} + '%'"></div>
+                </div>
+                <span class="w-10 text-right font-semibold" th:text="${d.count}">0</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- 인기 검색어 TOP 20 -->
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <h2 class="text-sm font-semibold mb-3">인기 검색어 TOP 20</h2>
+            <p th:if="${#lists.isEmpty(popular)}" class="text-[12px] text-gray-400">데이터가 없습니다.</p>
+            <ol class="space-y-1.5 text-[13px]">
+                <li th:each="p, st : ${popular}" class="flex items-center gap-2">
+                    <span class="w-6 text-center font-bold"
+                          th:classappend="${st.index < 3} ? 'text-primary' : 'text-gray-400'"
+                          th:text="${st.count}">1</span>
+                    <a th:href="@{/result(q=${p.keyword})}" class="hover:underline" th:text="${p.keyword}">키워드</a>
+                    <span class="ml-auto text-[11px] text-gray-400" th:text="${p.searchCount} + '회'">0</span>
+                </li>
+            </ol>
+        </div>
+
+        <!-- 무결과 검색어 TOP 20 (사전 보강 단서) -->
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <h2 class="text-sm font-semibold mb-1">무결과 검색어 TOP 20</h2>
+            <p class="text-[11px] text-gray-400 mb-3">사용자가 찾았지만 결과가 없던 검색어 — 단어/동의어 사전 보강 단서</p>
+            <p th:if="${#lists.isEmpty(noResult)}" class="text-[12px] text-gray-400">데이터가 없습니다.</p>
+            <ol class="space-y-1.5 text-[13px]">
+                <li th:each="n, st : ${noResult}" class="flex items-center gap-2">
+                    <span class="w-6 text-center font-bold text-amber-500" th:text="${st.count}">1</span>
+                    <a th:href="@{/result(q=${n.key})}" class="hover:underline" th:text="${n.key}">키워드</a>
+                    <span class="ml-auto text-[11px] text-gray-400" th:text="${n.count} + '회'">0</span>
+                </li>
+            </ol>
+        </div>
+    </div>
+</main>
+</body>
+</html>

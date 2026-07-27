@@ -63,4 +63,34 @@
         REFRESH MATERIALIZED VIEW CONCURRENTLY vw_search_popular_keyword
     </update>
 
+    <!-- ── 검색 통계 (어드민) ── -->
+
+    <select id="countByDay" resultType="KeyCount">
+        SELECT to_char(date_trunc('day', created_at), 'MM-DD') AS key,
+               count(*) AS count
+        FROM log_search_keyword
+        WHERE created_at &gt;= now() - make_interval(days => #{days})
+        GROUP BY date_trunc('day', created_at)
+        ORDER BY date_trunc('day', created_at)
+    </select>
+
+    <select id="findNoResult" resultType="KeyCount">
+        SELECT keyword AS key, count(*) AS count
+        FROM log_search_keyword
+        WHERE result_count = 0
+          AND is_blocked = false
+          AND created_at &gt;= now() - make_interval(days => #{days})
+        GROUP BY keyword
+        ORDER BY count DESC, key
+        LIMIT #{limit}
+    </select>
+
+    <select id="statsSummary" resultType="map">
+        SELECT count(*)                                                        AS total,
+               count(*) FILTER (WHERE is_blocked)                              AS blocked,
+               count(*) FILTER (WHERE result_count = 0 AND NOT is_blocked)     AS noresult
+        FROM log_search_keyword
+        WHERE created_at &gt;= now() - make_interval(days => #{days})
+    </select>
+
 </mapper>

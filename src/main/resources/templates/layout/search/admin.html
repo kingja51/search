@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title layout:title-pattern="$CONTENT_TITLE - 검색 관리">검색 관리</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style type="text/tailwindcss">
+        @theme {
+            --color-primary: #2563eb;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex bg-gray-50 text-gray-900">
+
+<!-- 사이드 메뉴 -->
+<aside class="w-52 shrink-0 bg-gray-900 text-gray-300 min-h-screen p-4 flex flex-col gap-1">
+    <p class="text-white font-bold text-[15px] px-2 py-3">🔧 검색 관리</p>
+
+    <p class="px-2 pt-3 pb-1 text-[11px] text-gray-500 font-semibold">사전 관리</p>
+    <a th:href="@{/adm/dic/word}" class="px-3 py-2 rounded-lg text-[13px] hover:bg-gray-800"
+       th:classappend="${menu == 'word'} ? 'bg-gray-800 text-white font-semibold'">단어사전</a>
+    <a th:href="@{/adm/dic/synonym}" class="px-3 py-2 rounded-lg text-[13px] hover:bg-gray-800"
+       th:classappend="${menu == 'synonym'} ? 'bg-gray-800 text-white font-semibold'">동의어사전</a>
+    <a th:href="@{/adm/dic/banned}" class="px-3 py-2 rounded-lg text-[13px] hover:bg-gray-800"
+       th:classappend="${menu == 'banned'} ? 'bg-gray-800 text-white font-semibold'">금지어사전</a>
+    <a th:href="@{/adm/dic/recommend}" class="px-3 py-2 rounded-lg text-[13px] hover:bg-gray-800"
+       th:classappend="${menu == 'recommend'} ? 'bg-gray-800 text-white font-semibold'">추천 검색어</a>
+
+    <p class="px-2 pt-4 pb-1 text-[11px] text-gray-500 font-semibold">운영</p>
+    <a th:href="@{/adm/index}" class="px-3 py-2 rounded-lg text-[13px] hover:bg-gray-800"
+       th:classappend="${menu == 'index'} ? 'bg-gray-800 text-white font-semibold'">색인 관리</a>
+    <a th:href="@{/adm/stats}" class="px-3 py-2 rounded-lg text-[13px] hover:bg-gray-800"
+       th:classappend="${menu == 'stats'} ? 'bg-gray-800 text-white font-semibold'">검색 통계</a>
+    <a th:href="@{/monitor}" class="px-3 py-2 rounded-lg text-[13px] hover:bg-gray-800"
+       th:classappend="${menu == 'monitor'} ? 'bg-gray-800 text-white font-semibold'">모니터</a>
+
+    <div class="mt-auto pt-4">
+        <a th:href="@{/}" class="block px-3 py-2 rounded-lg text-[13px] text-gray-400 hover:bg-gray-800">← 사용자 화면</a>
+    </div>
+</aside>
+
+<!-- 본문 -->
+<main class="flex-1 min-w-0 p-6" layout:fragment="content">
+</main>
+</body>
+</html>

@@ -41,8 +41,8 @@ Elasticsearch 같은 별도 검색 서버 없이 **PostgreSQL 18의 Full-Text Se
 - 검색 대상 추가 = `tn_원본 테이블 + vw_*_search VIEW 1개` 추가로 끝 (색인·검색 코어는 무수정)
 - 인기 검색어·색인 동기화가 전부 스케줄 자동화 → 무인 운영
 
-**범위**: v1.0은 사용자 검색 기능에 집중. 관리자 화면(`adm/*`)과 권한(Spring Security)은 **추후 개발**
-(URL·컨트롤러 설계만 확정, 그 전까지 사전·추천어 관리는 SQL 직접 실행).
+**범위**: v1.0은 사용자 검색 기능 → 이후 관리자 화면(`adm/*`)까지 구현 완료(2026-07-28).
+**권한(Spring Security)만 추후** — 도입 시 `/adm/**` 접근 제한 + 감사자 ID 교체.
 
 ---
 
@@ -1073,11 +1073,10 @@ templates/
 │   ├─ results.html            # 검색 결과 fragment (전체 탭: 그룹 뷰 / 개별 탭: 페이징 뷰)
 │   ├─ result-item.html        # 결과 1건 fragment (제목·내용·등록일·링크, 하이라이트 적용)
 │   └─ autocomplete.html       # 자동완성 드롭다운 fragment
-└─ adm/                        # ※ 추후 개발
-    ├─ dic-list.html           # 사전 목록 (layout:decorate="~{layout/search/admin}")
-    ├─ dic-row.html            # 인라인 편집 행 fragment
-    ├─ index-status.html       # 색인 동기화 상태/진행률 fragment
-    └─ stats.html              # 검색 통계
+└─ adm/
+    ├─ dic-list.html           # 사전 4종 목록+등록 (layout:decorate="~{layout/search/admin}", 타입 분기)
+    ├─ index.html              # 색인 현황·동기화/재색인 버튼
+    └─ stats.html              # 검색 통계 (요약·일별·인기·무결과)
 ```
 
 ### 7.2 화면 목록
@@ -1093,9 +1092,9 @@ templates/
 | 인기 검색어 | `GET /api/keyword/popular` | KeywordApiController | 메인 로드 시 1회 (MV 10분 자동 갱신) |
 | 추천 검색어 | `GET /api/keyword/recommend` | KeywordApiController | 메인·결과 상단 노출, 클릭 시 검색 |
 | 내가 찾은 검색어 | `GET /api/keyword/my` | KeywordApiController | 오른쪽 사이드바 **인기 검색어 아래** 노출 — **최근 1개월** 기준 최대 10개 (session_id 우선, IP 폴백). 검색창 포커스 드롭다운은 인기 검색어 |
-| 사전 관리 | `GET /adm/dic/{word\|synonym\|banned\|recommend}` | DicAdmController | ※ 추후 — 목록/추가/수정/삭제 fragment 교체 (인라인 편집) |
-| 색인 관리 | `GET /adm/index` · `POST /adm/index/sync` · `POST /adm/index/rebuild` | IndexAdmController | ※ 추후 — 진행률 폴링 (`hx-trigger="every 1s"`) |
-| 검색 통계 | `GET /adm/stats` | StatsAdmController | ※ 추후 — 기간별 검색량, 인기검색어, 무결과 검색어 |
+| 사전 관리 | `GET /adm/dic/{word\|synonym\|banned\|recommend}` | DicAdmController | 목록+등록/활성토글/삭제 (폼 제출 PRG — 인라인 편집은 추후 개선). 변경 시 AFTER_COMMIT 캐시 evict+리로드 자동, 수동 리로드 버튼 제공 |
+| 색인 관리 | `GET /adm/index` · `POST /adm/index/sync` · `POST /adm/index/rebuild` | IndexAdmController | 도메인별 색인 건수·마지막 실행 결과 + 동기화/재색인 버튼 (진행률 폴링은 대량 데이터 시 개선 과제) |
+| 검색 통계 | `GET /adm/stats?days=` | StatsAdmController | 기간(7/30/90일) 요약(총/무결과/차단), 일별 검색량 막대, 인기 TOP20, 무결과 검색어 TOP20 |
 
 검색 결과 화면은 **탭별 건수**(전체 124 · 컨텐츠 80 · 파일 21 · 게시판 20 · 메뉴 3)를 함께 표시한다.
 **전체 탭은 카테고리별 그룹 뷰**: 설정 순서(컨텐츠→게시판→파일→메뉴)대로 그룹당 10건 + "더보기 (N건)" 버튼,
@@ -1120,10 +1119,10 @@ templates/
 | GET | `/api/keyword/popular` | KeywordApiController | 인기 검색어 TOP 10 (MV 자동 갱신) |
 | GET | `/api/keyword/recommend` | KeywordApiController | 추천 검색어 (관리자 등록, 노출기간·순서 적용) |
 | GET | `/api/keyword/my` | KeywordApiController | 내 검색어 (요청자 session/IP 기준, 파라미터 없음) |
-| GET/POST/PUT/DELETE | `/adm/dic/word` 등 | DicAdmController | ※ 추후 — 사전 3종 + 추천 검색어 CRUD |
-| POST | `/adm/dic/reload` | DicAdmController | ※ 추후 — 분석기 사전 리로드 + 관련 캐시 evict |
-| POST | `/adm/index/sync` · `/adm/index/rebuild` | IndexAdmController | ※ 추후 — 즉시 동기화 / 전체 재색인 |
-| GET | `/adm/stats` | StatsAdmController | ※ 추후 — 검색 통계 |
+| GET/POST | `/adm/dic/{type}` · `/adm/dic/{type}/{id}/toggle` · `/{id}/delete` | DicAdmController | 사전 3종 + 추천 검색어 등록/토글/삭제 (AFTER_COMMIT 리로드) |
+| POST | `/adm/dic/reload` | DicAdmController | 분석기 사전 리로드 + 관련 캐시 evict (수동) |
+| POST | `/adm/index/sync` · `/adm/index/rebuild` | IndexAdmController | 즉시 동기화(diff) / 전체 재색인(full) |
+| GET | `/adm/stats?days=` | StatsAdmController | 검색 통계 (요약·일별·인기·무결과) |
 | GET | `:9090/actuator/prometheus` | (Actuator) | Prometheus 메트릭 스크레이프 |
 | GET | `:9090/actuator/health` , `/actuator/caches` | (Actuator) | 헬스체크, 캐시 상태 조회 |
 
@@ -1158,7 +1157,7 @@ templates/
 9. **명명 규칙 고정** — 테이블: 일반 `tn_` / 로그 `log_` / (M)VIEW `vw_`. Controller: API `*ApiController` / 사용자 `*UsrController` / 관리자 `*AdmController`. 패키지 루트 `com.gonet.search`. 레이아웃 `templates/layout/search/`.
 10. **색인은 매일 2회 스케줄 동기화 + content_hash diff** — 예측 가능한 배치. md5 해시 비교로 변경분만 Nori 분석. 즉시 반영은 수동 트리거로 보완.
 11. **색인 PK는 (doc_type, doc_id) 복합키** — 도메인별 id 충돌 없이 통합 색인. 이동 경로는 색인에 저장된 `link_url` 사용.
-12. **관리자 화면·권한은 추후 개발** — v1.0은 사용자 검색에 집중. 사전 관리는 당분간 SQL 직접 실행. URL·컨트롤러 설계만 확정.
+12. **관리자 화면 구현 완료(2026-07-28), 권한만 추후** — 사전 4종 CRUD(AFTER_COMMIT 캐시 evict+리로드 자동), 색인 관리, 검색 통계. Spring Security 도입 시 `/adm/**` 접근 제한 + 감사자 ID(guest/admin)를 인증 사용자로 교체.
 13. **품사는 keep-list 기본 정책** — NNG·NNP·SL·SN만 색인·검색 (`search.analyzer.keep-pos`). 색인·검색 동일 Analyzer 공유. keep-pos 변경 시 전체 재색인 필수.
 14. **추천 검색어는 관리자 등록 테이블로 분리** — 인기 검색어(로그 자동)와 별개로 `tn_search_recommend_keyword`에서 노출기간·순서로 통제.
 15. **정렬·기간은 `source_updated_at` 기준** — 최신순 정렬과 기간 필터(실시간 6h/1일/이번주/이번달)는 색인에 저장한 원본 수정일로 판정. 전용 인덱스로 최신순 쿼리 분리.

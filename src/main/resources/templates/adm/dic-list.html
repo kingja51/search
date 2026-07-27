@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/search/admin}">
+<head>
+    <title th:text="${type == 'word' ? '단어사전' : (type == 'synonym' ? '동의어사전' : (type == 'banned' ? '금지어사전' : '추천 검색어'))}">사전</title>
+</head>
+<body>
+<main layout:fragment="content">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-lg font-bold"
+            th:text="${type == 'word' ? '단어사전 (Nori 사용자 사전)' : (type == 'synonym' ? '동의어사전' : (type == 'banned' ? '금지어사전' : '추천 검색어'))}">사전</h1>
+        <form th:action="@{/adm/dic/reload}" method="post">
+            <button type="submit"
+                    class="px-4 py-2 text-[13px] rounded-lg border border-gray-300 bg-white hover:bg-gray-100 cursor-pointer"
+                    title="SQL로 직접 수정한 경우 수동 반영">사전 리로드</button>
+        </form>
+    </div>
+
+    <p class="text-[12px] text-gray-500 mb-4">
+        등록·수정·삭제 시 트랜잭션 커밋 후 캐시 evict + Nori 사전 리로드가 자동 수행됩니다.
+        <span th:if="${type == 'word'}" class="text-red-500">단어사전 변경을 기존 색인에 반영하려면 [색인 관리]에서 전체 재색인이 필요합니다.</span>
+    </p>
+
+    <!-- 등록 폼 (타입별) -->
+    <div class="bg-white border border-gray-200 rounded-xl p-4 mb-5">
+        <form th:if="${type == 'word'}" th:action="@{/adm/dic/word}" method="post"
+              class="flex flex-wrap items-end gap-2 text-[13px]">
+            <label class="flex flex-col gap-1"><span class="text-xs text-gray-400">단어 *</span>
+                <input name="word" required class="border border-gray-200 rounded-lg px-2.5 py-1.5 w-36"></label>
+            <label class="flex flex-col gap-1"><span class="text-xs text-gray-400">분해형 (복합명사)</span>
+                <input name="segments" placeholder="예: 검색 엔진" class="border border-gray-200 rounded-lg px-2.5 py-1.5 w-40"></label>
+            <label class="flex flex-col gap-1"><span class="text-xs text-gray-400">품사</span>
+                <select name="posTag" class="border border-gray-200 rounded-lg px-2 py-1.5">
+                    <option>NNG</option><option>NNP</option>
+                </select></label>
+            <label class="flex flex-col gap-1 flex-1 min-w-40"><span class="text-xs text-gray-400">메모</span>
+                <input name="memo" class="border border-gray-200 rounded-lg px-2.5 py-1.5 w-full"></label>
+            <button type="submit" class="px-4 py-1.5 rounded-lg bg-primary text-white cursor-pointer hover:bg-primary/90">등록</button>
+        </form>
+
+        <form th:if="${type == 'synonym'}" th:action="@{/adm/dic/synonym}" method="post"
+              class="flex flex-wrap items-end gap-2 text-[13px]">
+            <label class="flex flex-col gap-1"><span class="text-xs text-gray-400">그룹 번호 *</span>
+                <input name="groupId" type="number" required class="border border-gray-200 rounded-lg px-2.5 py-1.5 w-28"></label>
+            <label class="flex flex-col gap-1"><span class="text-xs text-gray-400">단어 *</span>
+                <input name="word" required class="border border-gray-200 rounded-lg px-2.5 py-1.5 w-36"></label>
+            <label class="flex items-center gap-1.5 pb-2"><input type="checkbox" name="representative" value="true"> 대표어</label>
+            <button type="submit" class="px-4 py-1.5 rounded-lg bg-primary text-white cursor-pointer hover:bg-primary/90">등록</button>
+            <span class="text-xs text-gray-400 pb-2">같은 그룹 번호 = 서로 동의어 (그룹 내 OR 확장)</span>
+        </form>
+
+        <form th:if="${type == 'banned'}" th:action="@{/adm/dic/banned}" method="post"
+              class="flex flex-wrap items-end gap-2 text-[13px]">
+            <label class="flex flex-col gap-1"><span class="text-xs text-gray-400">금지어 *</span>
+                <input name="word" required class="border border-gray-200 rounded-lg px-2.5 py-1.5 w-36"></label>
+            <label class="flex flex-col gap-1"><span class="text-xs text-gray-400">유형</span>
+                <select name="blockType" class="border border-gray-200 rounded-lg px-2 py-1.5">
+                    <option value="BLOCK">BLOCK (검색 차단)</option>
+                    <option value="MASK">MASK (검색식 제외)</option>
+                </select></label>
+            <label class="flex flex-col gap-1 flex-1 min-w-40"><span class="text-xs text-gray-400">메모</span>
+                <input name="memo" class="border border-gray-200 rounded-lg px-2.5 py-1.5 w-full"></label>
+            <button type="submit" class="px-4 py-1.5 rounded-lg bg-primary text-white cursor-pointer hover:bg-primary/90">등록</button>
+        </form>
+
+        <form th:if="${type == 'recommend'}" th:action="@{/adm/dic/recommend}" method="post"
+              class="flex flex-wrap items-end gap-2 text-[13px]">
+            <label class="flex flex-col gap-1"><span class="text-xs text-gray-400">키워드 *</span>
+                <input name="keyword" required class="border border-gray-200 rounded-lg px-2.5 py-1.5 w-36"></label>
+            <label class="flex flex-col gap-1"><span class="text-xs text-gray-400">순서</span>
+                <input name="displayOrder" type="number" value="0" class="border border-gray-200 rounded-lg px-2.5 py-1.5 w-20"></label>
+            <label class="flex flex-col gap-1"><span class="text-xs text-gray-400">노출 시작일</span>
+                <input name="startDate" type="date" class="border border-gray-200 rounded-lg px-2 py-1.5"></label>
+            <label class="flex flex-col gap-1"><span class="text-xs text-gray-400">노출 종료일</span>
+                <input name="endDate" type="date" class="border border-gray-200 rounded-lg px-2 py-1.5"></label>
+            <label class="flex flex-col gap-1 flex-1 min-w-32"><span class="text-xs text-gray-400">메모</span>
+                <input name="memo" class="border border-gray-200 rounded-lg px-2.5 py-1.5 w-full"></label>
+            <button type="submit" class="px-4 py-1.5 rounded-lg bg-primary text-white cursor-pointer hover:bg-primary/90">등록</button>
+        </form>
+    </div>
+
+    <!-- 목록 -->
+    <div class="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <table class="w-full text-[13px]">
+            <thead>
+            <tr class="bg-gray-50 border-b border-gray-200 text-left text-gray-500">
+                <th class="py-2.5 px-3 w-14">ID</th>
+                <th:block th:switch="${type}">
+                    <th:block th:case="'word'">
+                        <th class="py-2.5 px-3">단어</th><th class="py-2.5 px-3">분해형</th>
+                        <th class="py-2.5 px-3 w-16">품사</th><th class="py-2.5 px-3">메모</th>
+                    </th:block>
+                    <th:block th:case="'synonym'">
+                        <th class="py-2.5 px-3 w-20">그룹</th><th class="py-2.5 px-3">단어</th>
+                        <th class="py-2.5 px-3 w-20">대표어</th>
+                    </th:block>
+                    <th:block th:case="'banned'">
+                        <th class="py-2.5 px-3">금지어</th><th class="py-2.5 px-3 w-20">유형</th>
+                        <th class="py-2.5 px-3">메모</th>
+                    </th:block>
+                    <th:block th:case="'recommend'">
+                        <th class="py-2.5 px-3">키워드</th><th class="py-2.5 px-3 w-16">순서</th>
+                        <th class="py-2.5 px-3">노출기간</th><th class="py-2.5 px-3">메모</th>
+                    </th:block>
+                </th:block>
+                <th class="py-2.5 px-3 w-16">활성</th>
+                <th class="py-2.5 px-3 w-32">관리</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="item : ${items}" class="border-b border-gray-100"
+                th:classappend="${!item.enabled} ? 'opacity-40'">
+                <td class="py-2 px-3 text-gray-400" th:text="${item.id}">1</td>
+                <th:block th:switch="${type}">
+                    <th:block th:case="'word'">
+                        <td class="py-2 px-3 font-medium" th:text="${item.word}"></td>
+                        <td class="py-2 px-3" th:text="${item.segments}"></td>
+                        <td class="py-2 px-3" th:text="${item.posTag}"></td>
+                        <td class="py-2 px-3 text-gray-500" th:text="${item.memo}"></td>
+                    </th:block>
+                    <th:block th:case="'synonym'">
+                        <td class="py-2 px-3" th:text="${item.groupId}"></td>
+                        <td class="py-2 px-3 font-medium" th:text="${item.word}"></td>
+                        <td class="py-2 px-3" th:text="${item.representative} ? '★' : ''"></td>
+                    </th:block>
+                    <th:block th:case="'banned'">
+                        <td class="py-2 px-3 font-medium" th:text="${item.word}"></td>
+                        <td class="py-2 px-3" th:text="${item.blockType}"></td>
+                        <td class="py-2 px-3 text-gray-500" th:text="${item.memo}"></td>
+                    </th:block>
+                    <th:block th:case="'recommend'">
+                        <td class="py-2 px-3 font-medium" th:text="${item.keyword}"></td>
+                        <td class="py-2 px-3" th:text="${item.displayOrder}"></td>
+                        <td class="py-2 px-3 text-gray-500"
+                            th:text="${(item.startDate != null ? item.startDate : '상시') + ' ~ ' + (item.endDate != null ? item.endDate : '상시')}"></td>
+                        <td class="py-2 px-3 text-gray-500" th:text="${item.memo}"></td>
+                    </th:block>
+                </th:block>
+                <td class="py-2 px-3" th:text="${item.enabled} ? 'ON' : 'OFF'"></td>
+                <td class="py-2 px-3">
+                    <div class="flex gap-1.5">
+                        <form th:action="@{'/adm/dic/' + ${type} + '/' + ${item.id} + '/toggle'}" method="post">
+                            <button type="submit"
+                                    class="px-2.5 py-1 text-[12px] rounded border border-gray-200 hover:bg-gray-50 cursor-pointer"
+                                    th:text="${item.enabled} ? '비활성' : '활성'">토글</button>
+                        </form>
+                        <form th:action="@{'/adm/dic/' + ${type} + '/' + ${item.id} + '/delete'}" method="post"
+                              onsubmit="return confirm('삭제하시겠습니까?');">
+                            <button type="submit"
+                                    class="px-2.5 py-1 text-[12px] rounded border border-red-200 text-red-500 hover:bg-red-50 cursor-pointer">삭제</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(items)}">
+                <td colspan="8" class="py-8 text-center text-gray-400">등록된 항목이 없습니다.</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+</body>
+</html>

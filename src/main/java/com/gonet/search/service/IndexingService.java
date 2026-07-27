@@ -42,6 +42,10 @@ public class IndexingService {
     @Value("${search.index.sync-on-startup:false}")
     private boolean syncOnStartup;
 
+    /** 마지막 동기화/재색인 결과 (어드민 화면 표시용) */
+    @lombok.Getter
+    private volatile SyncResult lastResult;
+
     /** 기동 직후 1회 동기화 (개발 편의: search.index.sync-on-startup) */
     @EventListener(ApplicationReadyEvent.class)
     public void onStartup() {
@@ -65,7 +69,8 @@ public class IndexingService {
         long elapsed = System.currentTimeMillis() - start;
         recordSyncTimer("diff", elapsed);
         log.info("색인 동기화 완료(diff): 신규·변경 {}건, 삭제 {}건, {}ms", upserted, deleted, elapsed);
-        return new SyncResult("diff", upserted, deleted, elapsed);
+        lastResult = new SyncResult("diff", upserted, deleted, elapsed);
+        return lastResult;
     }
 
     /** 전체 재색인: 해시 비교 없이 전량 재분석 — 사전·품사 설정 변경 후 사용 */
@@ -77,7 +82,8 @@ public class IndexingService {
         long elapsed = System.currentTimeMillis() - start;
         recordSyncTimer("full", elapsed);
         log.info("전체 재색인 완료(full): {}건, 삭제 {}건, {}ms", upserted, deleted, elapsed);
-        return new SyncResult("full", upserted, deleted, elapsed);
+        lastResult = new SyncResult("full", upserted, deleted, elapsed);
+        return lastResult;
     }
 
     private int upsertInChunks(List<SearchSource> sources) {

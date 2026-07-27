@@ -3,12 +3,40 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.gonet.search.mapper.DicWordMapper">
 
+    <sql id="columns">
+        id, word, segments, pos_tag, enabled, memo,
+        created_at, created_ip, created_by, updated_at, updated_ip, updated_by
+    </sql>
+
     <select id="findAllEnabled" resultType="DicWord">
-        SELECT id, word, segments, pos_tag, enabled, memo,
-               created_at, created_ip, created_by, updated_at, updated_ip, updated_by
+        SELECT <include refid="columns"/>
         FROM tn_search_dic_word
         WHERE enabled = true
         ORDER BY id
     </select>
+
+    <select id="findAll" resultType="DicWord">
+        SELECT <include refid="columns"/>
+        FROM tn_search_dic_word
+        ORDER BY id DESC
+    </select>
+
+    <!-- 감사 컬럼은 AuditInterceptor가 파라미터 객체에 주입한 값을 바인딩 -->
+    <insert id="insert" parameterType="DicWord" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO tn_search_dic_word (word, segments, pos_tag, enabled, memo,
+                                        created_at, created_ip, created_by, updated_at)
+        VALUES (#{word}, #{segments}, #{posTag}, #{enabled}, #{memo},
+                #{createdAt}, #{createdIp}, #{createdBy}, #{updatedAt})
+    </insert>
+
+    <update id="toggleEnabled">
+        UPDATE tn_search_dic_word
+        SET enabled = NOT enabled, updated_at = now(), updated_ip = #{ip}, updated_by = 'admin'
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM tn_search_dic_word WHERE id = #{id}
+    </delete>
 
 </mapper>

@@ -30,4 +30,15 @@ public interface SearchKeywordLogMapper {
 
     /** 인기 검색어 MV 갱신 (CONCURRENTLY — 조회 무중단) */
     void refreshPopular();
+
+    /* ── 검색 통계 (어드민) ── */
+
+    /** 일별 검색량 (최근 N일) */
+    List<com.gonet.search.dto.KeyCount> countByDay(@Param("days") int days);
+
+    /** 무결과 검색어 TOP N (최근 N일) — 사전 보강 단서 */
+    List<com.gonet.search.dto.KeyCount> findNoResult(@Param("days") int days, @Param("limit") int limit);
+
+    /** 요약: total / blocked / noresult (최근 N일) */
+    java.util.Map<String, Object> statsSummary(@Param("days") int days);
 }

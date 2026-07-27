@@ -62,4 +62,4 @@ mvn -q compile               # 빠른 컴파일 확인
 - 커밋 메시지는 한국어, 접두어는 `feat:`/`fix:`/`docs:`/`chore:` 사용. 커밋 후 바로 push (원격: origin/main)
 - Flyway 마이그레이션 파일은 수정하지 않는다 — 스키마 변경은 새 버전 파일(V5, V6, …) 추가
 - 단계별 상세 작업 계획·진행 현황은 [PLAN.md](PLAN.md) 참조 — **단계 완료/상태 변경 시 PLAN.md를 갱신할 것** (README 체크리스트는 요약본)
-- 관리자 화면(`adm/*`)·Spring Security 권한은 **추후 개발** — 지금 구현하지 않는다
+- 관리자 화면(`adm/*`)은 구현됨(사전 4종 CRUD·색인 관리·통계 — 권한 없음). **Spring Security 권한만 추후** — 도입 시 `/adm/**` 접근 제한 + AuditInterceptor 감사자 ID(guest/admin)를 인증 사용자로 교체

@@ -70,4 +70,5 @@ Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreS
 - [x] 5단계: 캐시·관측성 (Caffeine 5종 + 커스텀 메트릭 + 단계별 span)
 - [x] **전체 실동작 검증** — PostgreSQL 18 (postgres DB / search 스키마 / search_user), 검색·동의어 하이라이트·금지어·자동완성·인기/추천 검색어·메트릭 확인 (2026-07)
 - [x] 6단계: 마무리 — 인덱스 EXPLAIN 검증, 내장 Chart.js 모니터 대시보드(/monitor), 운영 문서 (**v1.0**)
-- [ ] (추후) 어드민·권한
+- [x] 어드민 — 사전 4종 관리(자동 리로드)·색인 관리·검색 통계 (`/search/adm/dic/word`)
+- [ ] (추후) Spring Security 권한 (/adm/** 접근 제한)

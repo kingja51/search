@@ -3,12 +3,39 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.gonet.search.mapper.DicSynonymMapper">
 
+    <sql id="columns">
+        id, group_id, word, is_representative AS representative, enabled,
+        created_at, created_ip, created_by, updated_at, updated_ip, updated_by
+    </sql>
+
     <select id="findAllEnabled" resultType="DicSynonym">
-        SELECT id, group_id, word, is_representative AS representative, enabled,
-               created_at, created_ip, created_by, updated_at, updated_ip, updated_by
+        SELECT <include refid="columns"/>
         FROM tn_search_dic_synonym
         WHERE enabled = true
         ORDER BY group_id, is_representative DESC, id
     </select>
+
+    <select id="findAll" resultType="DicSynonym">
+        SELECT <include refid="columns"/>
+        FROM tn_search_dic_synonym
+        ORDER BY group_id, is_representative DESC, id
+    </select>
+
+    <insert id="insert" parameterType="DicSynonym" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO tn_search_dic_synonym (group_id, word, is_representative, enabled,
+                                           created_at, created_ip, created_by, updated_at)
+        VALUES (#{groupId}, #{word}, #{representative}, #{enabled},
+                #{createdAt}, #{createdIp}, #{createdBy}, #{updatedAt})
+    </insert>
+
+    <update id="toggleEnabled">
+        UPDATE tn_search_dic_synonym
+        SET enabled = NOT enabled, updated_at = now(), updated_ip = #{ip}, updated_by = 'admin'
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM tn_search_dic_synonym WHERE id = #{id}
+    </delete>
 
 </mapper>

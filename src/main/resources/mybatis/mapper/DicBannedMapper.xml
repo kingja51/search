@@ -3,12 +3,39 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.gonet.search.mapper.DicBannedMapper">
 
+    <sql id="columns">
+        id, word, block_type, enabled, memo,
+        created_at, created_ip, created_by, updated_at, updated_ip, updated_by
+    </sql>
+
     <select id="findAllEnabled" resultType="DicBanned">
-        SELECT id, word, block_type, enabled, memo,
-               created_at, created_ip, created_by, updated_at, updated_ip, updated_by
+        SELECT <include refid="columns"/>
         FROM tn_search_dic_banned
         WHERE enabled = true
         ORDER BY id
     </select>
+
+    <select id="findAll" resultType="DicBanned">
+        SELECT <include refid="columns"/>
+        FROM tn_search_dic_banned
+        ORDER BY id DESC
+    </select>
+
+    <insert id="insert" parameterType="DicBanned" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO tn_search_dic_banned (word, block_type, enabled, memo,
+                                          created_at, created_ip, created_by, updated_at)
+        VALUES (#{word}, #{blockType}, #{enabled}, #{memo},
+                #{createdAt}, #{createdIp}, #{createdBy}, #{updatedAt})
+    </insert>
+
+    <update id="toggleEnabled">
+        UPDATE tn_search_dic_banned
+        SET enabled = NOT enabled, updated_at = now(), updated_ip = #{ip}, updated_by = 'admin'
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM tn_search_dic_banned WHERE id = #{id}
+    </delete>
 
 </mapper>

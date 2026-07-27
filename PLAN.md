@@ -92,11 +92,21 @@
 | README 보강 | ✅ | 모니터링·운영 팁 섹션 (사전 변경 반영, 재색인, MV 수동 갱신, 무결과 검색어 점검) |
 | v1.0 태그 | ✅ | git tag v1.0 |
 
-## 📌 추후 (v1.0 이후)
+## 어드민 (v1.0 이후 단계) ✅ — 2026-07-28
 
-- 관리자 화면(adm/*): 사전 3종+추천어 CRUD(인라인 편집), 리로드/동기화/재색인 버튼, 검색 통계(무결과 검색어 리포트)
-- Spring Security 권한 + AuditInterceptor 감사자 ID를 인증 사용자로 교체
-- (선택) Zipkin 연동, ShedLock(다중 인스턴스 시)
+| 작업 | 상태 | 산출물 |
+|---|---|---|
+| 사전 4종 관리 | ✅ | /adm/dic/{word\|synonym\|banned\|recommend} — 목록·등록·활성토글·삭제 + 사전 리로드 버튼. 변경 시 **AFTER_COMMIT에 캐시 evict + Nori 리로드 자동** (DictionaryService, 설계 5.2 이행) |
+| 색인 관리 | ✅ | /adm/index — 도메인별 색인 건수, 마지막 실행 결과, 지금 동기화(diff)/전체 재색인(full) 버튼 |
+| 검색 통계 | ✅ | /adm/stats — 기간 선택(7/30/90일), 총/무결과/차단 요약, 일별 검색량 막대(14일), 인기 TOP20, **무결과 검색어 TOP20**(사전 보강 단서) |
+| 관리자 레이아웃 | ✅ | layout/search/admin.html (다크 사이드 메뉴), 사용자 헤더에 "관리" 링크 |
+| CRUD 검증 | ✅ | 등록(guest/IP 감사) → 토글(updated_by=admin) → 삭제 실동작 확인 |
+| 비고 | | 인라인 편집 대신 폼 제출(PRG) 방식 채택 — 수정은 삭제 후 재등록. 재색인 진행률 폴링은 대량 데이터 필요 시 개선 |
+
+## 📌 추후
+
+- **Spring Security 권한** — /adm/** 접근 제한 + AuditInterceptor 감사자 ID(guest/admin)를 인증 사용자로 교체
+- (선택) Zipkin 연동, ShedLock(다중 인스턴스 시), log_search_keyword 파티셔닝/보관주기, 사전 인라인 편집
 
 ---
 
