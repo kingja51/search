@@ -273,10 +273,12 @@
             </th:block>
         </section>
 
-        <!-- 오른쪽: 인기 검색어 (기간 탭: 전체/실시간/1일/이번주/이번달) -->
+        <!-- 오른쪽: 인기 검색어 (기간 탭) + 내가 찾은 검색어 (최근 1개월) -->
         <aside class="md:w-52 shrink-0">
             <div id="popular-box" class="border border-gray-200 rounded-xl p-4"
                  th:attr="hx-get=@{/api/keyword/popular}" hx-trigger="load" hx-swap="innerHTML"></div>
+            <div class="border border-gray-200 rounded-xl p-4 mt-4"
+                 th:attr="hx-get=@{/api/keyword/my}" hx-trigger="load" hx-swap="innerHTML"></div>
         </aside>
     </div>
 

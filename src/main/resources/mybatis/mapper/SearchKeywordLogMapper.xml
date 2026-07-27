@@ -36,12 +36,13 @@
         LIMIT #{limit}
     </select>
 
-    <!-- 내 검색어: created_at=검색 시각, created_ip=검색자 IP (감사 컬럼이 로그 컬럼을 겸함) -->
+    <!-- 내가 찾은 검색어: 최근 1개월 기준, created_at=검색 시각, created_ip=검색자 IP (감사 컬럼이 로그 컬럼을 겸함) -->
     <select id="findRecentBySession" resultType="KeywordStat">
         SELECT keyword, max(created_at) AS last_searched_at
         FROM log_search_keyword
         WHERE session_id = #{sessionId}
           AND is_blocked = false
+          AND created_at &gt;= now() - INTERVAL '1 month'
         GROUP BY keyword
         ORDER BY last_searched_at DESC
         LIMIT #{limit}
@@ -52,6 +53,7 @@
         FROM log_search_keyword
         WHERE created_ip = #{clientIp}
           AND is_blocked = false
+          AND created_at &gt;= now() - INTERVAL '1 month'
         GROUP BY keyword
         ORDER BY last_searched_at DESC
         LIMIT #{limit}

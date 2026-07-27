@@ -54,12 +54,16 @@
     </a>
 </div>
 
-<!-- 내 검색어: API(/api/keyword/my) 용 fragment (session -> IP 폴백) -->
-<div th:fragment="myKeywords" th:if="${!#lists.isEmpty(myKeywords)}"
-     class="bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-    <p class="px-4 pt-2.5 pb-1 text-[11px] font-semibold text-gray-400">내 검색어</p>
-    <a th:each="m : ${myKeywords}" th:href="@{/result(q=${m.keyword})}"
-       class="block px-4 py-2 text-[13px] hover:bg-gray-50" th:text="${m.keyword}">키워드</a>
+<!-- 내가 찾은 검색어: 사이드바용 (최근 1개월, 최대 10개, session -> IP 폴백) -->
+<div th:fragment="myKeywords" class="text-left">
+    <h3 class="text-sm font-bold mb-2.5">내가 찾은 검색어</h3>
+    <p th:if="${#lists.isEmpty(myKeywords)}" class="text-[12px] text-gray-400 py-2">최근 1개월 검색 이력이 없습니다.</p>
+    <ol class="space-y-1.5" th:unless="${#lists.isEmpty(myKeywords)}">
+        <li th:each="m, st : ${myKeywords}" class="flex items-center gap-2 text-[13px]">
+            <span class="w-5 text-center font-bold text-gray-400" th:text="${st.count}">1</span>
+            <a th:href="@{/result(q=${m.keyword})}" class="hover:underline" th:text="${m.keyword}">키워드</a>
+        </li>
+    </ol>
 </div>
 
 <!-- 자동완성 드롭다운 -->
