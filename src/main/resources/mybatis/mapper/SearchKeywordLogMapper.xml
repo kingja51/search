@@ -93,4 +93,23 @@
         WHERE created_at &gt;= now() - make_interval(days => #{days})
     </select>
 
+    <!-- 탭(검색 대상)별 검색 분포 -->
+    <select id="countByDocType" resultType="KeyCount">
+        SELECT coalesce(doc_type, 'ALL') AS key, count(*) AS count
+        FROM log_search_keyword
+        WHERE created_at &gt;= now() - make_interval(days => #{days})
+        GROUP BY coalesce(doc_type, 'ALL')
+        ORDER BY count DESC
+    </select>
+
+    <!-- 시간대별(0~23시) 검색량 -->
+    <select id="countByHour" resultType="KeyCount">
+        SELECT lpad(extract(hour FROM created_at)::int::text, 2, '0') AS key,
+               count(*) AS count
+        FROM log_search_keyword
+        WHERE created_at &gt;= now() - make_interval(days => #{days})
+        GROUP BY extract(hour FROM created_at)
+        ORDER BY extract(hour FROM created_at)
+    </select>
+
 </mapper>

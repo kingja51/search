@@ -92,6 +92,16 @@ public class KeywordLogService {
         return logMapper.statsSummary(days);
     }
 
+    /** 탭(검색 대상)별 검색 분포 */
+    public List<com.gonet.search.dto.KeyCount> searchByDocType(int days) {
+        return logMapper.countByDocType(days);
+    }
+
+    /** 시간대별(0~23시) 검색량 */
+    public List<com.gonet.search.dto.KeyCount> searchByHour(int days) {
+        return logMapper.countByHour(days);
+    }
+
     /** 인기 검색어 (최근 N일 기준, 통계 화면용) */
     public List<KeywordStat> popularSinceDays(int days, int limit) {
         return logMapper.findPopularSince(java.time.OffsetDateTime.now().minusDays(days), limit);

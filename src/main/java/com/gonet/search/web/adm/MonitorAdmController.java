@@ -1,4 +1,4 @@
-package com.gonet.search.web.api;
+package com.gonet.search.web.adm;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.FunctionCounter;
@@ -6,8 +6,11 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,13 +18,14 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 내장 모니터 대시보드(/monitor)용 메트릭 스냅샷 JSON (DESIGN.md 6.2).
- * 외부 연결 제한 환경을 고려해 Grafana 대신 앱 내 Chart.js 대시보드가 이 API를 폴링한다.
- * 값은 MeterRegistry의 현재 누적치 — 증가율(QPS 등) 계산은 클라이언트가 폴링 간 차분으로 수행.
+ * 모니터 대시보드 (관리자) — Spring/Micrometer(Prometheus) 메트릭을 Chart.js로 시각화.
+ * 외부 연결 제한 환경 고려: Grafana 미사용, Chart.js는 webjar 내장, 데이터는 MeterRegistry 스냅샷 JSON 폴링.
+ * ※ 권한(Spring Security)은 추후.
  */
-@RestController
+@Controller
+@RequestMapping("/adm/monitor")
 @RequiredArgsConstructor
-public class MonitorApiController {
+public class MonitorAdmController {
 
     private static final List<String> SPANS =
             List.of("search.analyze", "search.expand", "search.fts", "search.highlight");
@@ -29,7 +33,15 @@ public class MonitorApiController {
 
     private final MeterRegistry registry;
 
-    @GetMapping("/api/monitor/summary")
+    @GetMapping
+    public String page(Model model) {
+        model.addAttribute("menu", "monitor");
+        return "adm/monitor";
+    }
+
+    /** 메트릭 스냅샷 JSON — 화면이 5초 폴링, 증가율(QPS 등)은 클라이언트가 차분 계산 */
+    @GetMapping("/summary")
+    @ResponseBody
     public Map<String, Object> summary() {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("timestamp", System.currentTimeMillis());
@@ -44,7 +56,7 @@ public class MonitorApiController {
         search.put("blocked", counterValue("search.blocked"));
         out.put("search", search);
 
-        // 단계별 span 평균 (ms)
+        // 단계별 span (ms)
         Map<String, Object> spans = new LinkedHashMap<>();
         for (String name : SPANS) {
             Map<String, Object> s = new LinkedHashMap<>();

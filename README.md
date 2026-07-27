@@ -44,7 +44,7 @@ Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreS
 
 ## 모니터링
 
-- **내장 대시보드**: `http://localhost:8080/search/monitor` — Chart.js(webjar 내장, **외부 연결 불필요**)
+- **내장 대시보드**: `http://localhost:8080/search/adm/monitor` — Chart.js(webjar 내장, **외부 연결 불필요**)
   5초 폴링. 검색 처리량·평균 응답시간(단계별 span 토글)·캐시 히트율·색인 문서 수 + 배치 현황
   (Grafana/Prometheus는 외부 연결 제한 환경을 고려해 미사용 — Actuator `/actuator/prometheus`는 열려 있어 추후 연동 가능)
 - Actuator(관리 포트 9090): `http://localhost:9090/actuator/health` · `/actuator/prometheus` · `/actuator/caches`

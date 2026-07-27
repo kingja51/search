@@ -1051,9 +1051,9 @@ management:
 | `cache.gets` 등 | (자동) | `cache`, `result` | Caffeine 히트율 |
 | `hikaricp.*`, `jvm.*`, `http.server.requests` | (자동) | | DB 커넥션풀, JVM, HTTP 전반 |
 
-- 시각화: **내장 Chart.js 대시보드 `/monitor`** — 외부 연결 제한 환경을 고려해 Grafana 미사용.
-  Chart.js는 webjar로 앱에 내장, `/api/monitor/summary`(MeterRegistry 스냅샷 JSON)를 5초 폴링해
-  검색 처리량·구간 평균 응답시간(단계별 span)·캐시 히트율·색인 문서 수·배치 현황을 렌더링
+- 시각화: **내장 Chart.js 대시보드 `/adm/monitor`** (관리자 메뉴) — 외부 연결 제한 환경을 고려해 Grafana 미사용.
+  Chart.js는 webjar로 앱에 내장, `/adm/monitor/summary`(MeterRegistry = Micrometer/Prometheus 메트릭 스냅샷 JSON)를
+  5초 폴링해 검색 처리량·구간 평균 응답시간(단계별 span)·캐시 히트율·색인 문서 수·배치 현황을 렌더링
 - (선택) 외부 연동이 가능한 환경이면 `:9090/actuator/prometheus` 스크레이프로 Prometheus/Grafana 연계 가능
 
 ---
@@ -1094,7 +1094,8 @@ templates/
 | 내가 찾은 검색어 | `GET /api/keyword/my` | KeywordApiController | 오른쪽 사이드바 **인기 검색어 아래** 노출 — **최근 1개월** 기준 최대 10개 (session_id 우선, IP 폴백). 검색창 포커스 드롭다운은 인기 검색어 |
 | 사전 관리 | `GET /adm/dic/{word\|synonym\|banned\|recommend}` | DicAdmController | 목록+등록/활성토글/삭제 (폼 제출 PRG — 인라인 편집은 추후 개선). 변경 시 AFTER_COMMIT 캐시 evict+리로드 자동, 수동 리로드 버튼 제공 |
 | 색인 관리 | `GET /adm/index` · `POST /adm/index/sync` · `POST /adm/index/rebuild` | IndexAdmController | 도메인별 색인 건수·마지막 실행 결과 + 동기화/재색인 버튼 (진행률 폴링은 대량 데이터 시 개선 과제) |
-| 검색 통계 | `GET /adm/stats?days=` | StatsAdmController | 기간(7/30/90일) 요약(총/무결과/차단), 일별 검색량 막대, 인기 TOP20, 무결과 검색어 TOP20 |
+| 검색 통계 | `GET /adm/stats?days=` | StatsAdmController | 기간(7/30/90일) 요약(총/무결과/차단) + **Chart.js 차트 4종**(일별 검색량, 시간대별 0~23시, 검색 대상별 도넛, 색인 도메인·카테고리 분포) + 인기 TOP20 + 무결과 검색어 TOP20 |
+| 모니터 | `GET /adm/monitor` (+ `/summary` JSON) | MonitorAdmController | Micrometer 메트릭 Chart.js 대시보드 (5초 폴링) — 6.2 참조 |
 
 검색 결과 화면은 **탭별 건수**(전체 124 · 컨텐츠 80 · 파일 21 · 게시판 20 · 메뉴 3)를 함께 표시한다.
 **전체 탭은 카테고리별 그룹 뷰**: 설정 순서(컨텐츠→게시판→파일→메뉴)대로 그룹당 10건 + "더보기 (N건)" 버튼,

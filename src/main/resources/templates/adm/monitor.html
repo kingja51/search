@@ -1,68 +1,66 @@
 <!DOCTYPE html>
 <html lang="ko" xmlns:th="http://www.thymeleaf.org"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      layout:decorate="~{layout/search/default}">
+      layout:decorate="~{layout/search/admin}">
 <head>
     <title>모니터</title>
 </head>
 <body>
 <main layout:fragment="content">
-    <section class="py-6">
-        <div class="flex items-center justify-between mb-4">
-            <h1 class="text-xl font-bold">검색엔진 모니터</h1>
-            <span class="text-xs text-gray-400">5초 간격 갱신 · <span id="last-updated">-</span></span>
-        </div>
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-lg font-bold">모니터 <span class="text-xs font-normal text-gray-400">(Micrometer/Prometheus 메트릭)</span></h1>
+        <span class="text-xs text-gray-400">5초 간격 갱신 · <span id="last-updated">-</span></span>
+    </div>
 
-        <!-- 상단 스탯 카드 -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-            <div class="border border-gray-200 rounded-xl p-3.5">
-                <p class="text-[11px] text-gray-400">누적 검색 수</p>
-                <p class="text-xl font-bold" id="stat-count">-</p>
-            </div>
-            <div class="border border-gray-200 rounded-xl p-3.5">
-                <p class="text-[11px] text-gray-400">평균 응답 (전체 누적)</p>
-                <p class="text-xl font-bold" id="stat-avg">-</p>
-            </div>
-            <div class="border border-gray-200 rounded-xl p-3.5">
-                <p class="text-[11px] text-gray-400">무결과 검색</p>
-                <p class="text-xl font-bold" id="stat-noresult">-</p>
-            </div>
-            <div class="border border-gray-200 rounded-xl p-3.5">
-                <p class="text-[11px] text-gray-400">금지어 차단</p>
-                <p class="text-xl font-bold" id="stat-blocked">-</p>
-            </div>
+    <!-- 상단 스탯 카드 -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <div class="bg-white border border-gray-200 rounded-xl p-3.5">
+            <p class="text-[11px] text-gray-400">누적 검색 수</p>
+            <p class="text-xl font-bold" id="stat-count">-</p>
         </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-3.5">
+            <p class="text-[11px] text-gray-400">평균 응답 (전체 누적)</p>
+            <p class="text-xl font-bold" id="stat-avg">-</p>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-3.5">
+            <p class="text-[11px] text-gray-400">무결과 검색</p>
+            <p class="text-xl font-bold text-amber-600" id="stat-noresult">-</p>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-3.5">
+            <p class="text-[11px] text-gray-400">금지어 차단</p>
+            <p class="text-xl font-bold text-red-600" id="stat-blocked">-</p>
+        </div>
+    </div>
 
-        <!-- 차트 4종 -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="border border-gray-200 rounded-xl p-4">
-                <h2 class="text-sm font-semibold mb-2">검색 처리량 (건/초)</h2>
-                <canvas id="chart-qps" height="170"></canvas>
-            </div>
-            <div class="border border-gray-200 rounded-xl p-4">
-                <h2 class="text-sm font-semibold mb-2">평균 응답시간 (ms, 폴링 구간)</h2>
-                <canvas id="chart-latency" height="170"></canvas>
-            </div>
-            <div class="border border-gray-200 rounded-xl p-4">
-                <h2 class="text-sm font-semibold mb-2">캐시 히트율 (%)</h2>
-                <canvas id="chart-cache" height="170"></canvas>
-            </div>
-            <div class="border border-gray-200 rounded-xl p-4">
-                <h2 class="text-sm font-semibold mb-2">색인 문서 수 (도메인별)</h2>
-                <canvas id="chart-index" height="170"></canvas>
-            </div>
+    <!-- 차트 4종 -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <h2 class="text-sm font-semibold mb-2">검색 처리량 (건/초)</h2>
+            <canvas id="chart-qps" height="170"></canvas>
         </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <h2 class="text-sm font-semibold mb-2">평균 응답시간 (ms, 폴링 구간)</h2>
+            <canvas id="chart-latency" height="170"></canvas>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <h2 class="text-sm font-semibold mb-2">캐시 히트율 (%)</h2>
+            <canvas id="chart-cache" height="170"></canvas>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <h2 class="text-sm font-semibold mb-2">색인 문서 수 (도메인별)</h2>
+            <canvas id="chart-index" height="170"></canvas>
+        </div>
+    </div>
 
-        <!-- 배치 현황 -->
-        <div class="border border-gray-200 rounded-xl p-4 mt-4 text-[13px]">
-            <h2 class="text-sm font-semibold mb-2">배치 현황</h2>
-            <div id="batch-info" class="text-gray-600">아직 실행 이력이 없습니다.</div>
-        </div>
-    </section>
+    <!-- 배치 현황 -->
+    <div class="bg-white border border-gray-200 rounded-xl p-4 mt-4 text-[13px]">
+        <h2 class="text-sm font-semibold mb-2">배치 현황</h2>
+        <div id="batch-info" class="text-gray-600">아직 실행 이력이 없습니다.</div>
+    </div>
 
     <script th:src="@{/webjars/chart.js/4.4.9/dist/chart.umd.js}"></script>
     <script th:inline="javascript">
-        const API_URL = /*[[@{/api/monitor/summary}]]*/ '/search/api/monitor/summary';
+        const API_URL = /*[[@{/adm/monitor/summary}]]*/ '/search/adm/monitor/summary';
         const MAX_POINTS = 60;                      // 5초 × 60 = 최근 5분
         const PRIMARY = '#2563eb';
         const PALETTE = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2'];
@@ -110,7 +108,6 @@
             if (arr.length > MAX_POINTS) arr.shift();
         }
 
-        // 폴링 구간 차분으로 QPS·구간 평균 계산 (누적치는 단조 증가)
         function deltaRate(cur, prv, seconds) {
             return Math.max(0, (cur - prv)) / seconds;
         }
@@ -127,14 +124,12 @@
                 const now = new Date(d.timestamp);
                 document.getElementById('last-updated').textContent = now.toLocaleTimeString();
 
-                // 스탯 카드
                 document.getElementById('stat-count').textContent = d.search.count.toLocaleString();
                 document.getElementById('stat-avg').textContent =
                     d.search.count > 0 ? (d.search.totalTimeMs / d.search.count).toFixed(1) + ' ms' : '-';
                 document.getElementById('stat-noresult').textContent = d.search.noresult.toLocaleString();
                 document.getElementById('stat-blocked').textContent = d.search.blocked.toLocaleString();
 
-                // 시계열 (직전 스냅샷과 차분)
                 if (prev) {
                     const sec = (d.timestamp - prev.timestamp) / 1000;
                     pushRolling(labels, now.toLocaleTimeString());
@@ -151,7 +146,6 @@
                 }
                 prev = d;
 
-                // 캐시 히트율
                 const names = Object.keys(d.caches);
                 cacheChart.data.labels = names;
                 cacheChart.data.datasets[0].data = names.map(n => {
@@ -160,12 +154,10 @@
                 });
                 cacheChart.update();
 
-                // 색인 문서 수
                 indexChart.data.labels = Object.keys(d.indexDocuments);
                 indexChart.data.datasets[0].data = Object.values(d.indexDocuments);
                 indexChart.update();
 
-                // 배치 현황
                 const b = d.batch;
                 const parts = [];
                 if (b['sync.diff.count']) parts.push(`색인 동기화(diff): ${b['sync.diff.count']}회 · 평균 ${b['sync.diff.meanMs'].toFixed(0)}ms`);

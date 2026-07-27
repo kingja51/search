@@ -41,4 +41,10 @@ public interface SearchKeywordLogMapper {
 
     /** 요약: total / blocked / noresult (최근 N일) */
     java.util.Map<String, Object> statsSummary(@Param("days") int days);
+
+    /** 탭(doc_type)별 검색 수 (최근 N일, NULL=ALL) */
+    List<com.gonet.search.dto.KeyCount> countByDocType(@Param("days") int days);
+
+    /** 시간대별(0~23시) 검색 수 (최근 N일) */
+    List<com.gonet.search.dto.KeyCount> countByHour(@Param("days") int days);
 }

@@ -11,6 +11,15 @@
         </where>
     </select>
 
+    <!-- 도메인·카테고리별 색인 분포 (통계 화면, 상위 12) -->
+    <select id="countByCategory" resultType="KeyCount">
+        SELECT doc_type || ' · ' || coalesce(category, '-') AS key, count(*) AS count
+        FROM tn_search_index
+        GROUP BY doc_type, category
+        ORDER BY count DESC, key
+        LIMIT 12
+    </select>
+
     <!-- 색인 배치 upsert (DESIGN.md 4.4)
          감사 컬럼: created_*는 AuditInterceptor가 항목에 주입한 값(system/서버IP),
          충돌(UPDATE) 시에는 updated_*를 EXCLUDED 값으로 갱신 -->

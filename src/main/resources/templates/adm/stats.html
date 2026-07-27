@@ -35,19 +35,23 @@
         </div>
     </div>
 
-    <!-- 일별 검색량 (최근 14일, 텍스트 막대) -->
-    <div class="bg-white border border-gray-200 rounded-xl p-4 mb-5">
-        <h2 class="text-sm font-semibold mb-3">일별 검색량 (최근 14일)</h2>
-        <p th:if="${#lists.isEmpty(daily)}" class="text-[12px] text-gray-400">데이터가 없습니다.</p>
-        <div th:unless="${#lists.isEmpty(daily)}" class="space-y-1.5 text-[12px]">
-            <div th:each="d : ${daily}" class="flex items-center gap-2">
-                <span class="w-12 text-gray-400" th:text="${d.key}">07-27</span>
-                <div class="flex-1 bg-gray-100 rounded h-4 overflow-hidden">
-                    <div class="bg-primary/70 h-4"
-                         th:style="'width:' + ${dailyMax > 0 ? d.count * 100.0 / dailyMax : 0} + '%'"></div>
-                </div>
-                <span class="w-10 text-right font-semibold" th:text="${d.count}">0</span>
-            </div>
+    <!-- 차트 4종 -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <h2 class="text-sm font-semibold mb-2">일별 검색량 (최근 14일)</h2>
+            <canvas id="chart-daily" height="180"></canvas>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <h2 class="text-sm font-semibold mb-2">시간대별 검색량 (0~23시)</h2>
+            <canvas id="chart-hour" height="180"></canvas>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <h2 class="text-sm font-semibold mb-2">검색 대상(탭)별 분포</h2>
+            <canvas id="chart-type" height="180"></canvas>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <h2 class="text-sm font-semibold mb-2">색인 카테고리 분포 (도메인 · 카테고리)</h2>
+            <canvas id="chart-category" height="180"></canvas>
         </div>
     </div>
 
@@ -81,6 +85,71 @@
             </ol>
         </div>
     </div>
+
+    <script th:src="@{/webjars/chart.js/4.4.9/dist/chart.umd.js}"></script>
+    <script th:inline="javascript">
+        const PRIMARY = '#2563eb';
+        const PALETTE = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d'];
+
+        // 서버 모델 → JSON (KeyCount: {key, count})
+        const daily = /*[[${daily}]]*/ [];
+        const byHour = /*[[${byHour}]]*/ [];
+        const byType = /*[[${byType}]]*/ [];
+        const indexByCategory = /*[[${indexByCategory}]]*/ [];
+
+        const typeLabel = k => ({ALL: '통합', CONTENT: '컨텐츠', FILE: '파일', BBS: '게시판', MENU: '메뉴'}[k] || k);
+
+        // 일별 검색량 — 막대
+        new Chart(document.getElementById('chart-daily'), {
+            type: 'bar',
+            data: {
+                labels: daily.map(d => d.key),
+                datasets: [{ label: '검색 수', data: daily.map(d => d.count),
+                             backgroundColor: PRIMARY + 'b3', borderRadius: 4 }]
+            },
+            options: { animation: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                       plugins: { legend: { display: false } } }
+        });
+
+        // 시간대별 검색량 — 0~23시 전체 축 채우기
+        const hourMap = Object.fromEntries(byHour.map(h => [h.key, h.count]));
+        const hourLabels = Array.from({length: 24}, (_, i) => String(i).padStart(2, '0'));
+        new Chart(document.getElementById('chart-hour'), {
+            type: 'bar',
+            data: {
+                labels: hourLabels.map(h => h + '시'),
+                datasets: [{ label: '검색 수', data: hourLabels.map(h => hourMap[h] || 0),
+                             backgroundColor: PALETTE[5] + 'b3', borderRadius: 3 }]
+            },
+            options: { animation: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                       plugins: { legend: { display: false } } }
+        });
+
+        // 검색 대상(탭)별 분포 — 도넛
+        new Chart(document.getElementById('chart-type'), {
+            type: 'doughnut',
+            data: {
+                labels: byType.map(t => typeLabel(t.key)),
+                datasets: [{ data: byType.map(t => t.count),
+                             backgroundColor: byType.map((_, i) => PALETTE[i % PALETTE.length] + 'cc') }]
+            },
+            options: { animation: false,
+                       plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } } } }
+        });
+
+        // 색인 카테고리 분포 — 가로 막대
+        new Chart(document.getElementById('chart-category'), {
+            type: 'bar',
+            data: {
+                labels: indexByCategory.map(c => c.key),
+                datasets: [{ label: '문서 수', data: indexByCategory.map(c => c.count),
+                             backgroundColor: PALETTE[1] + 'b3', borderRadius: 3 }]
+            },
+            options: { animation: false, indexAxis: 'y',
+                       scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+                       plugins: { legend: { display: false } } }
+        });
+    </script>
 </main>
 </body>
 </html>

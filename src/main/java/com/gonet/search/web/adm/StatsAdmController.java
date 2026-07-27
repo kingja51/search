@@ -1,5 +1,6 @@
 package com.gonet.search.web.adm;
 
+import com.gonet.search.mapper.SearchIndexMapper;
 import com.gonet.search.service.KeywordLogService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
@@ -18,15 +19,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class StatsAdmController {
 
     private final KeywordLogService keywordLogService;
+    private final SearchIndexMapper searchIndexMapper;
 
     @GetMapping
     public String stats(@RequestParam(defaultValue = "30") int days, Model model) {
         model.addAttribute("menu", "stats");
         model.addAttribute("days", days);
         model.addAttribute("summary", keywordLogService.statsSummary(days));
-        var daily = keywordLogService.dailyCounts(Math.min(days, 14));
-        model.addAttribute("daily", daily);
-        model.addAttribute("dailyMax", daily.stream().mapToLong(com.gonet.search.dto.KeyCount::getCount).max().orElse(0));
+        model.addAttribute("daily", keywordLogService.dailyCounts(Math.min(days, 14)));
+        model.addAttribute("byType", keywordLogService.searchByDocType(days));
+        model.addAttribute("byHour", keywordLogService.searchByHour(days));
+        model.addAttribute("indexByCategory", searchIndexMapper.countByCategory());
         model.addAttribute("popular", keywordLogService.popularSinceDays(days, 20));
         model.addAttribute("noResult", keywordLogService.noResultKeywords(days, 20));
         return "adm/stats";
