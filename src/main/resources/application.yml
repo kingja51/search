@@ -8,14 +8,16 @@ spring:
     name: search
   profiles:
     active: local                # DB 접속 정보는 application-local.yml (git 미추적)
-  jpa:
-    hibernate:
-      ddl-auto: none             # 스키마는 Flyway가 관리
-    open-in-view: false
   task:
     scheduling:
       pool:
         size: 2                  # 색인 동기화 + 인기검색어 MV 갱신
+
+mybatis:
+  mapper-locations: classpath:mybatis/mapper/*.xml
+  type-aliases-package: com.gonet.search.domain
+  configuration:
+    map-underscore-to-camel-case: true   # snake_case 컬럼 → camelCase 필드 자동 매핑
 
 logging:
   pattern:

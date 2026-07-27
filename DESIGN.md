@@ -51,7 +51,8 @@ Elasticsearch 같은 별도 검색 서버 없이 **PostgreSQL 18의 Full-Text Se
 | 구분 | 기술 | 비고 |
 |---|---|---|
 | Language | Java 21 | record, virtual thread 활용 |
-| Framework | Spring Boot 3.5.9 | Web, Data JPA(+Auditing), Validation, Thymeleaf |
+| Framework | Spring Boot 3.5.9 | Web, Validation, Thymeleaf |
+| 데이터 액세스 | **MyBatis 3** (mybatis-spring-boot-starter) | XML 매퍼 방식. **JPA 미사용** |
 | Build | Maven | |
 | DB | PostgreSQL 18 | FTS(tsvector/tsquery), GIN, pg_trgm |
 | 형태소 분석 | `org.apache.lucene:lucene-analysis-nori` (9.x) | 앱 내장 라이브러리로 사용 |
@@ -68,6 +69,11 @@ Elasticsearch 같은 별도 검색 서버 없이 **PostgreSQL 18의 Full-Text Se
     <groupId>org.apache.lucene</groupId>
     <artifactId>lucene-analysis-nori</artifactId>
     <version>9.11.1</version>
+</dependency>
+<dependency>
+    <groupId>org.mybatis.spring.boot</groupId>
+    <artifactId>mybatis-spring-boot-starter</artifactId>
+    <version>3.0.5</version>
 </dependency>
 <dependency>
     <groupId>org.postgresql</groupId>
@@ -135,7 +141,7 @@ updated_by  VARCHAR(50)                                       -- 수정자 ID
 
 - `created_*`는 INSERT 시 애플리케이션이 입력 (IP는 요청에서 추출, ID는 로그인 전까지 `guest`/`system`)
 - `updated_*`는 UPDATE 시에만 애플리케이션이 갱신 (최초 INSERT 시 updated_at은 DEFAULT, ip/by는 NULL)
-- 채움 방식은 JPA Auditing 공통 처리(4.6절) 참조. 배치·스케줄러가 쓰는 행은 `system` + 서버 IP
+- 채움 방식은 MyBatis 감사 인터셉터 공통 처리(4.6절) 참조. 배치·스케줄러가 쓰는 행은 `system` + 서버 IP
 
 ### 3.1 테이블 목록
 
@@ -555,19 +561,23 @@ com.gonet.search
 │   ├─ NoriConfig.java              # Nori Analyzer 빈 (사용자 사전 로딩 포함)
 │   ├─ CacheConfig.java             # Caffeine 캐시 정의 (캐시별 TTL/크기, 통계 활성화)
 │   ├─ ObservabilityConfig.java     # 커스텀 메트릭(Timer/Counter), @Observed AOP
-│   ├─ AuditConfig.java             # JPA Auditing (AuditorAware, IP 리졸버) → 4.6절
+│   ├─ AuditInterceptor.java        # MyBatis 감사 인터셉터 (INSERT/UPDATE 시 감사 필드 주입) → 4.6절
+│   ├─ ClientIpFilter.java / ClientIpHolder.java  # 요청자 IP 추출·보관 → 4.6절
 │   ├─ SchedulerConfig.java         # @EnableScheduling, TaskDecorator(trace 전파)
 │   └─ WebConfig.java
 ├─ analyzer/
 │   ├─ KoreanAnalyzer.java          # Nori 래퍼: 문자열 → 토큰 리스트 (품사 keep-list)
 │   └─ UserDictionaryLoader.java    # tn_search_dic_word → Nori UserDictionary 변환·리로드
-├─ domain/                          # JPA 엔티티
-│   ├─ BaseEntity.java              # 공통 감사 컬럼 @MappedSuperclass → 4.6절
+├─ domain/                          # 도메인 클래스 (순수 POJO — JPA 미사용)
+│   ├─ BaseEntity.java              # 공통 감사 필드 6종 (모든 도메인이 상속) → 4.6절
 │   ├─ Content.java / File.java / Bbs.java / Menu.java
 │   ├─ DicWord.java / DicSynonym.java / DicBanned.java / RecommendKeyword.java
-│   ├─ SearchIndex.java             # @IdClass(doc_type, doc_id)
+│   ├─ SearchIndex.java             # PK = (docType, docId) 복합키
 │   └─ SearchKeywordLog.java
-├─ repository/                      # Spring Data JPA + 네이티브 쿼리(FTS)
+├─ mapper/                          # MyBatis 매퍼 인터페이스 (@Mapper)
+│   ├─ DicWordMapper / DicSynonymMapper / DicBannedMapper
+│   ├─ RecommendKeywordMapper / SearchIndexMapper / SearchKeywordLogMapper
+│   └─ (SQL은 resources/mybatis/mapper/*.xml 에 작성)
 ├─ service/
 │   ├─ IndexingService.java         # 색인 동기화 (해시 비교 → 변경분만 tn_search_index 반영)
 │   ├─ SearchService.java           # 검색 오케스트레이션 (필터→분석→확장→검색→하이라이트)
@@ -848,32 +858,38 @@ public void refreshPopularKeywords() {
 
 ### 4.6 감사(Audit) 공통 처리
 
-모든 테이블의 감사 컬럼 6종은 **JPA Auditing + 커스텀 리스너**로 애플리케이션이 자동 입력한다.
+모든 테이블의 감사 컬럼 6종은 **MyBatis Interceptor**가 INSERT/UPDATE 시점에 자동 입력한다. (JPA 미사용)
 
 ```java
-@MappedSuperclass
-@EntityListeners(AuditingEntityListener.class)
+// 도메인 공통 부모 — 모든 tn_/log_ 도메인 클래스가 상속 (순수 POJO)
 public abstract class BaseEntity {
-    @CreatedDate      @Column(updatable = false) private OffsetDateTime createdAt;   // 생성일
-    @Column(updatable = false, nullable = false) private String createdIp;           // 생성자 IP
-    @CreatedBy        @Column(updatable = false) private String createdBy;           // 생성자 ID
-    @LastModifiedDate                            private OffsetDateTime updatedAt;   // 수정일
-    private String updatedIp;                                                        // 수정자 IP
-    @LastModifiedBy                              private String updatedBy;           // 수정자 ID
+    private OffsetDateTime createdAt;   // 생성일
+    private String createdIp;           // 생성자 IP
+    private String createdBy;           // 생성자 ID
+    private OffsetDateTime updatedAt;   // 수정일
+    private String updatedIp;           // 수정자 IP
+    private String updatedBy;           // 수정자 ID
+}
 
-    @PrePersist void onCreate() { this.createdIp = ClientIpHolder.get(); }
-    @PreUpdate  void onUpdate() { this.updatedIp = ClientIpHolder.get(); }
+// MyBatis 감사 인터셉터 — Executor.update 가로채기
+@Intercepts(@Signature(type = Executor.class, method = "update",
+        args = {MappedStatement.class, Object.class}))
+@Component
+public class AuditInterceptor implements Interceptor {
+    // SqlCommandType.INSERT → createdAt/Ip/By + updatedAt 주입
+    // SqlCommandType.UPDATE → updatedAt/Ip/By 주입
+    // 파라미터가 BaseEntity(단건/Map/Collection 내부 포함)일 때 동작
 }
 ```
 
 | 구성 요소 | 역할 |
 |---|---|
-| `AuditorAware<String>` | 생성자/수정자 ID 공급. 로그인 도입 전: 웹 요청=`guest`, 배치·스케줄러=`system`. Spring Security 도입 시 인증 사용자 ID로 교체(이 빈만 수정) |
-| `ClientIpHolder` | 요청 스레드: Filter가 `X-Forwarded-For`→`remoteAddr` 순으로 추출해 ThreadLocal 보관. 비요청 스레드(@Async/@Scheduled): 서버 IP 반환 |
-| `@EnableJpaAuditing` | `AuditConfig`에서 활성화 |
-| 네이티브 upsert | JPA를 거치지 않는 색인 배치 SQL은 감사 컬럼을 SQL에 직접 바인딩 (4.4 참조) |
+| `AuditInterceptor` | INSERT/UPDATE 판별 후 감사 필드 주입. 생성자/수정자 ID: 웹 요청=`guest`, 배치·스케줄러=`system` (Spring Security 도입 시 이 판별 로직만 교체) |
+| `ClientIpHolder` | 요청 스레드: `ClientIpFilter`가 `X-Forwarded-For`→`remoteAddr` 순으로 추출해 ThreadLocal 보관. 비요청 스레드(@Async/@Scheduled): 서버 IP 반환 |
+| 매퍼 XML | INSERT/UPDATE 구문에 감사 컬럼을 **반드시 포함**하고 `#{createdAt}` 등으로 바인딩 — 인터셉터는 파라미터 객체에 값을 채울 뿐, 컬럼 기입은 SQL 담당 |
+| 파라미터 없는 배치 SQL | BaseEntity 파라미터가 없는 upsert(색인 동기화 등)는 SQL에 `now()`, `:serverIp`, `'system'`을 직접 기입 (4.4 참조) |
 
-- `updated_at`은 DB DEFAULT도 있지만 **JPA가 항상 명시 세팅** — DB 직접 수정(SQL) 시에만 DEFAULT가 의미를 가짐
+- `updated_at`은 DB DEFAULT도 있지만 **앱이 항상 명시 세팅** — DB 직접 수정(SQL) 시에만 DEFAULT가 의미를 가짐
 - `log_search_keyword`는 감사 컬럼이 로그 본연의 의미를 겸한다: `created_at`=검색 시각,
   `created_ip`=검색자 IP(내 검색어 조회 키), `created_by`=검색자 ID(로그인 전 `guest`)
 - **trace_id는 공통 감사 컬럼에 포함하지 않는다** — 감사 컬럼은 "누가·언제·어디서"의 영속 기록이고,
@@ -896,6 +912,12 @@ spring:
     scheduling:
       pool:
         size: 2                  # 색인 동기화 + 인기검색어 MV 갱신
+
+mybatis:
+  mapper-locations: classpath:mybatis/mapper/*.xml
+  type-aliases-package: com.gonet.search.domain
+  configuration:
+    map-underscore-to-camel-case: true   # snake_case 컬럼 → camelCase 필드 자동 매핑
 
 search:
   index:
@@ -1101,7 +1123,7 @@ templates/
 
 | 단계 | 내용 | 산출물 |
 |---|---|---|
-| **1. 기반 구축** | 프로젝트 생성(com.gonet.search), Flyway 스키마(V1~V4, 감사 컬럼·샘플 데이터 포함), BaseEntity·엔티티/리포지토리, JPA Auditing, 레이아웃(layout/search) | 앱 기동 + 테이블·VIEW·샘플 데이터 확인 |
+| **1. 기반 구축** | 프로젝트 생성(com.gonet.search), Flyway 스키마(V1~V4, 감사 컬럼·샘플 데이터 포함), BaseEntity·도메인/MyBatis 매퍼, 감사 인터셉터, 레이아웃(layout/search) | 앱 기동 + 테이블·VIEW·샘플 데이터 확인 |
 | **2. 분석·색인** | Nori 래퍼(품사 keep-list), 사용자 사전 로딩, IndexingService(해시 diff 동기화 + 스케줄), 샘플 데이터 색인 | 동기화 후 tn_search_index 채워짐 |
 | **3. 검색 코어** | 금지어 필터 → 동의어 확장 → tsquery(AND/OR·qPrev) → 통합 FTS 검색(탭·카테고리·기간·정렬) + 하이라이트 + 로그 + 인기검색어 자동 갱신 | `/result` 동작 |
 | **4. UI** | 검색 메인(추천·인기·내 검색어)/결과(그룹 뷰·더보기·상세검색 패널·무한스크롤), 자동완성 | 사용자 화면 완성 |
@@ -1136,4 +1158,5 @@ templates/
 19. **상세검색 조건은 URL 쿼리스트링으로 유지** — dateFrom/dateTo(period보다 우선), qPrev 칩. 북마크·공유·뒤로가기 호환.
 20. **전체 탭은 카테고리별 그룹 출력** — row_number() 윈도우 쿼리 한 번으로 그룹당 10건 + 총건수 조회. "더보기"는 해당 탭 상세 페이징으로 전환. 순서·건수 설정 외부화.
 21. **하이라이트는 앱 레이어 처리** — escape 후 `<mark>` 치환(긴 단어 우선). 동의어까지 강조, XSS 안전. 목록 본문은 색인에 저장한 앞 2000자에서 발췌.
-22. **감사 컬럼 6종을 전 테이블 표준화** — created_at/ip/by + updated_at/ip/by. JPA Auditing(BaseEntity) + ClientIpHolder(ThreadLocal)로 자동 입력, 배치는 system/서버IP. 로그 테이블은 감사 컬럼이 검색 시각·검색자 IP 역할을 겸함(중복 컬럼 제거).
+22. **감사 컬럼 6종을 전 테이블 표준화** — created_at/ip/by + updated_at/ip/by. MyBatis AuditInterceptor(BaseEntity 상속 파라미터에 자동 주입) + ClientIpHolder(ThreadLocal), 배치는 system/서버IP. 로그 테이블은 감사 컬럼이 검색 시각·검색자 IP 역할을 겸함(중복 컬럼 제거).
+23. **데이터 액세스는 MyBatis (JPA 미사용)** — FTS 네이티브 쿼리(tsquery·윈도우 함수·upsert)가 핵심인 프로젝트라 SQL을 XML 매퍼로 직접 통제. 도메인은 순수 POJO, snake_case↔camelCase 자동 매핑, 스키마는 Flyway 전담.

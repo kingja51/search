@@ -4,7 +4,7 @@
 
 ## 기술 스택
 
-Spring Boot 3.5.9 · Java 21 · Maven · PostgreSQL 18 · Thymeleaf + HTMX · Lucene Nori · Caffeine · Actuator/Prometheus/Tracing(Brave) · Flyway
+Spring Boot 3.5.9 · Java 21 · Maven · **MyBatis** (JPA 미사용) · PostgreSQL 18 · Thymeleaf + HTMX · Lucene Nori · Caffeine · Actuator/Prometheus/Tracing(Brave) · Flyway
 
 ## 핵심 구조
 
@@ -38,7 +38,7 @@ Spring Boot 3.5.9 · Java 21 · Maven · PostgreSQL 18 · Thymeleaf + HTMX · Lu
 ## 상태
 
 - [x] 설계 확정 (v2.0, 2026-07)
-- [x] 1단계: 기반 구축 (스캐폴딩 + Flyway + 엔티티) — ※ 앱 기동 검증은 로컬 PostgreSQL 준비 후
+- [x] 1단계: 기반 구축 (스캐폴딩 + Flyway + MyBatis 매퍼) — ※ 앱 기동 검증은 로컬 PostgreSQL 준비 후
 - [ ] 2단계: 분석·색인
 - [ ] 3단계: 검색 코어
 - [ ] 4단계: UI

@@ -9,6 +9,7 @@
 ## 기술 스택
 
 - Spring Boot 3.5.9 + Java 21 + Maven
+- **데이터 액세스: MyBatis (XML 매퍼) — JPA 사용 금지**
 - PostgreSQL 18 (FTS: tsvector 'simple' + GIN, pg_trgm) · Flyway (V1~V4)
 - Thymeleaf + Layout Dialect + HTMX (SPA 아님, fragment 부분 렌더링)
 - Lucene `lucene-analysis-nori` (형태소 분석은 자바 레이어에서 수행)
@@ -23,11 +24,17 @@
 - Thymeleaf 레이아웃: `templates/layout/search/` (default.html, admin.html)
 - context path: `/search` — 템플릿·HTMX의 URL은 반드시 `@{...}` 표현식 사용
 
+### MyBatis 규칙
+- 매퍼 인터페이스: `com.gonet.search.mapper.*Mapper` (@Mapper) / SQL: `src/main/resources/mybatis/mapper/*.xml`
+- 도메인은 순수 POJO (`com.gonet.search.domain`), snake_case↔camelCase 자동 매핑(map-underscore-to-camel-case)
+- 동적 SQL·FTS 쿼리는 XML에 작성 — `<`, `>`는 `&lt;` `&gt;` 이스케이프 주의
+
 ### 공통 감사 컬럼 (모든 tn_/log_ 테이블 필수, VIEW 제외)
 `created_at, created_ip(NOT NULL), created_by` + `updated_at, updated_ip, updated_by`
-- JPA 엔티티는 반드시 `BaseEntity`(@MappedSuperclass, JPA Auditing) 상속
-- IP는 ClientIpHolder(ThreadLocal), ID는 AuditorAware (웹=guest, 배치=system)
-- 네이티브 SQL 배치는 감사 컬럼을 직접 바인딩
+- 도메인 클래스는 반드시 `BaseEntity` 상속 — 값은 MyBatis `AuditInterceptor`가 자동 주입 (웹=guest, 배치=system)
+- 매퍼의 INSERT/UPDATE 구문에 감사 컬럼을 반드시 포함하고 `#{createdAt}` 등으로 바인딩할 것
+- BaseEntity 파라미터가 없는 배치 SQL(색인 upsert 등)은 `now()`/서버IP/'system'을 SQL에 직접 기입
+- IP는 ClientIpHolder(ThreadLocal, ClientIpFilter가 X-Forwarded-For에서 추출)
 - trace_id는 감사 컬럼이 아님 — log_* 테이블에만 존재
 
 ### 검색 핵심 불변식

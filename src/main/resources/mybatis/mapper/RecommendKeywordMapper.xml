@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gonet.search.mapper.RecommendKeywordMapper">
+
+    <select id="findDisplayable" resultType="RecommendKeyword">
+        SELECT id, keyword, display_order, start_date, end_date, enabled, memo,
+               created_at, created_ip, created_by, updated_at, updated_ip, updated_by
+        FROM tn_search_recommend_keyword
+        WHERE enabled = true
+          AND (start_date IS NULL OR start_date &lt;= #{today})
+          AND (end_date   IS NULL OR end_date   &gt;= #{today})
+        ORDER BY display_order ASC, id ASC
+    </select>
+
+</mapper>
