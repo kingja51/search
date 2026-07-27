@@ -106,13 +106,42 @@ public class IndexingService {
         index.setDocType(source.getDocType());
         index.setDocId(source.getDocId());
         index.setTitle(source.getTitle());
-        index.setSummary(body.length() > summaryLength ? body.substring(0, summaryLength) : body);
-        index.setLinkUrl(source.getLinkUrl());
+        index.setSummary(truncateSafely(body, summaryLength));
+        index.setLinkUrl(sanitizeLinkUrl(source.getLinkUrl()));
         index.setCategory(source.getCategory());
         index.setTokens(String.join(" ", koreanAnalyzer.analyze(source.getTitle() + " " + body)));
         index.setContentHash(source.getContentHash());
         index.setSourceUpdatedAt(source.getUpdatedAt());
         return index;
+    }
+
+    /** 절단 경계가 서로게이트 페어(이모지 등)를 가르지 않게 요약을 자른다 */
+    private String truncateSafely(String text, int max) {
+        if (text.length() <= max) {
+            return text;
+        }
+        int end = max;
+        if (Character.isLowSurrogate(text.charAt(end))) {
+            end--;
+        }
+        return text.substring(0, end);
+    }
+
+    /**
+     * 검색 결과 링크 스킴 검증 — 상대 경로(/...)와 http/https만 허용.
+     * 외부 소스를 색인하게 될 경우 javascript: 등 스킴 주입으로 href XSS가 되는 것을 차단한다.
+     */
+    private String sanitizeLinkUrl(String linkUrl) {
+        if (linkUrl == null || linkUrl.isBlank()) {
+            return "#";
+        }
+        String trimmed = linkUrl.strip();
+        String lower = trimmed.toLowerCase();
+        if (trimmed.startsWith("/") || lower.startsWith("http://") || lower.startsWith("https://")) {
+            return trimmed;
+        }
+        log.warn("허용되지 않는 link_url 스킴 — '#'로 대체: {}", trimmed);
+        return "#";
     }
 
     private void recordSyncTimer(String mode, long elapsedMs) {

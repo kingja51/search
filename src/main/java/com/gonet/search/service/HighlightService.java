@@ -54,15 +54,23 @@ public class HighlightService {
         if (pattern != null) {
             Matcher matcher = pattern.matcher(text);
             if (matcher.find()) {
-                int from = Math.max(0, matcher.start() - SNIPPET_RADIUS);
-                int to = Math.min(text.length(), matcher.end() + SNIPPET_RADIUS * 2);
+                int from = safeBoundary(text, Math.max(0, matcher.start() - SNIPPET_RADIUS));
+                int to = safeBoundary(text, Math.min(text.length(), matcher.end() + SNIPPET_RADIUS * 2));
                 window = (from > 0 ? "…" : "") + text.substring(from, to)
                         + (to < text.length() ? "…" : "");
             } else if (text.length() > SNIPPET_RADIUS * 3) {
-                window = text.substring(0, SNIPPET_RADIUS * 3) + "…";
+                window = text.substring(0, safeBoundary(text, SNIPPET_RADIUS * 3)) + "…";
             }
         }
         return highlight(window, pattern);
+    }
+
+    /** 절단 경계가 서로게이트 페어(이모지 등 4바이트 문자)를 가르면 페어 시작 위치로 보정 */
+    private int safeBoundary(String text, int index) {
+        if (index > 0 && index < text.length() && Character.isLowSurrogate(text.charAt(index))) {
+            return index - 1;
+        }
+        return index;
     }
 
     private String escapeHtml(String text) {

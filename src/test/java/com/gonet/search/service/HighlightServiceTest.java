@@ -60,6 +60,28 @@ class HighlightServiceTest {
     }
 
     @Test
+    @DisplayName("발췌 절단이 서로게이트 페어(이모지)를 가르지 않는다")
+    void snippetDoesNotSplitSurrogatePairs() {
+        Pattern p = service.compile(List.of("키워드"));
+        String emoji = "😀";                                     // 서로게이트 페어 (2 char)
+        String longText = emoji.repeat(200) + " 키워드 " + emoji.repeat(200);
+
+        String result = service.snippet(longText, p);
+
+        for (int i = 0; i < result.length(); i++) {
+            char c = result.charAt(i);
+            if (Character.isHighSurrogate(c)) {
+                assertThat(i + 1).as("high surrogate 뒤에 low surrogate가 있어야 함").isLessThan(result.length());
+                assertThat(Character.isLowSurrogate(result.charAt(i + 1))).isTrue();
+                i++;
+            } else {
+                assertThat(Character.isLowSurrogate(c)).as("고아 low surrogate 없어야 함 (index " + i + ")").isFalse();
+            }
+        }
+        assertThat(result).contains("<mark>키워드</mark>");
+    }
+
+    @Test
     @DisplayName("대소문자 무시: pdf 검색어로 PDF도 강조된다")
     void caseInsensitive() {
         Pattern p = service.compile(List.of("pdf"));

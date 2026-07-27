@@ -60,11 +60,14 @@ public class KoreanAnalyzer {
         return tokens;
     }
 
-    /** 사용자 사전 변경 시 내부 Analyzer 교체 (volatile 스왑 — 재기동 불필요) */
+    /**
+     * 사용자 사전 변경 시 내부 Analyzer 교체 (volatile 스왑 — 재기동 불필요).
+     * 구 인스턴스는 close하지 않고 GC에 맡긴다 — 교체 직전에 참조를 잡은 스레드가
+     * close된 Analyzer로 tokenStream()을 호출하면 AlreadyClosedException으로 검색이 실패할 수 있다.
+     * (리로드는 사전 변경 시에만 드물게 발생하므로 미회수 비용은 무시 가능)
+     */
     public synchronized void reload(UserDictionary userDictionary) {
-        Analyzer old = this.delegate;
         this.delegate = build(userDictionary);
-        old.close();
     }
 
     private Analyzer build(UserDictionary userDictionary) {
