@@ -28,7 +28,8 @@ public class SearchUsrController {
                          HttpServletRequest request,
                          Model model) {
         cond.applyQPrevRemove();                 // 재검색 칩 × 클릭 처리
-        cond.applyWithin();                      // "결과내 재검색" 체크박스 처리
+        cond.applyWithin();                      // "결과내 재검색" 체크박스 처리 (미체크 새 검색은 qPrev 초기화)
+        cond.sanitize();                         // size/page/qPrev 상한 클램프
         if (cond.getQ() == null || cond.getQ().isBlank()) {
             return "usr/results";                // 검색어 없음 → 검색 기능 소개 화면 (res 미주입)
         }
@@ -43,6 +44,7 @@ public class SearchUsrController {
                               HttpServletRequest request,
                               Model model) {
         cond.applyQPrevRemove();
+        cond.sanitize();
         SearchResponse res = searchService.search(cond, request.getSession().getId());
         model.addAttribute("res", res);
         return "usr/results :: itemsPage";

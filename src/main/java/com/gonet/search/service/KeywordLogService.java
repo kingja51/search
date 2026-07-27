@@ -41,14 +41,11 @@ public class KeywordLogService {
         }
     }
 
-    /** 인기 검색어 TOP N (전체 기간) — popularKeywords 캐시(TTL 1분) */
-    public List<KeywordStat> popularKeywords(int limit) {
-        return popularKeywords("all", limit);
-    }
-
     /**
      * 기간별 인기 검색어 TOP N — 로그 실시간 집계, popularKeywords 캐시(기간별 키, TTL 1분).
      * period: all(전체) / 6h(실시간) / 1d(1일) / week(이번주) / month(이번달)
+     * ※ 같은 클래스 안에서 이 메서드를 호출하면 프록시가 우회되어 캐시가 적용되지 않는다
+     *   — 편의 오버로드를 만들지 말고 호출부에서 직접 period를 넘길 것.
      */
     @Cacheable(cacheNames = "popularKeywords", key = "#period + ':' + #limit")
     public List<KeywordStat> popularKeywords(String period, int limit) {

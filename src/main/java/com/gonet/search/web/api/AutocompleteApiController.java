@@ -28,8 +28,8 @@ public class AutocompleteApiController {
     public String autocomplete(@RequestParam(value = "q", required = false) String q, Model model) {
         String query = q == null ? "" : q.strip();
         if (query.isEmpty()) {
-            // 포커스 직후: 인기 검색어 노출
-            model.addAttribute("popular", keywordLogService.popularKeywords(LIMIT));
+            // 포커스 직후: 인기 검색어 노출 (period 명시 — 캐시 경유)
+            model.addAttribute("popular", keywordLogService.popularKeywords("all", LIMIT));
             return "usr/keywords :: popularDropdown";
         }
         if (query.length() < MIN_LENGTH) {

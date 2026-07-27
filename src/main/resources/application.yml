@@ -54,6 +54,7 @@ management:
         search.query: true       # Grafana p95/p99 (histogram_quantile) 계산용 버킷 노출
 
 search:
+  trust-forwarded-header: false  # 리버스 프록시 뒤 배포 시에만 true — 직접 노출 환경에서 XFF 신뢰 시 IP 위조 가능
   index:
     sync-cron: "0 0 6,18 * * *"  # 색인 동기화 (매일 2회)
     chunk-size: 500

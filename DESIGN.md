@@ -788,7 +788,8 @@ ORDER BY last_searched_at DESC
 LIMIT 10;
 ```
 
-- IP 취득: 프록시/리버스프록시 뒤에서는 `X-Forwarded-For` 첫 값 사용 (`server.forward-headers-strategy: framework`)
+- IP 취득: 기본은 `remoteAddr` (XFF 미신뢰 — 직접 노출 환경에서 헤더로 IP 위조 가능). 리버스 프록시 뒤 배포 시에만
+  `search.trust-forwarded-header=true`로 `X-Forwarded-For` 첫 값 사용
 - 검색창 포커스 시 HTMX로 드롭다운 노출, 항목 클릭 → 재검색
 - 한계 명시: 공유기·사내망은 같은 공인 IP를 쓰므로 타인의 검색어가 섞일 수 있음 → `session_id`(쿠키)와
   AND 조건으로 우선 조회하고, 세션이 없을 때만 IP 단독 조회로 폴백

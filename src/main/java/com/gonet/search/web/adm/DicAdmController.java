@@ -5,16 +5,21 @@ import com.gonet.search.domain.DicSynonym;
 import com.gonet.search.domain.DicWord;
 import com.gonet.search.domain.RecommendKeyword;
 import com.gonet.search.service.DictionaryService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.support.RequestContextUtils;
 
 import java.time.LocalDate;
+import java.util.Set;
 
 /**
  * 사전 관리 (단어/동의어/금지어/추천 검색어) — 목록 + 등록/활성토글/삭제.
@@ -26,7 +31,22 @@ import java.time.LocalDate;
 @RequiredArgsConstructor
 public class DicAdmController {
 
+    private static final Set<String> TYPES = Set.of("word", "synonym", "banned", "recommend");
+
     private final DictionaryService dictionaryService;
+
+    /**
+     * UNIQUE 제약 위반(중복 등록) → 500 대신 목록으로 돌아가 안내 메시지 표시.
+     * @ExceptionHandler는 RedirectAttributes 파라미터를 지원하지 않으므로 OutputFlashMap에 직접 기록.
+     */
+    @ExceptionHandler(DuplicateKeyException.class)
+    public String duplicate(HttpServletRequest request) {
+        RequestContextUtils.getOutputFlashMap(request)
+                .put("error", "이미 등록된 항목입니다. (중복 등록 불가)");
+        String uri = request.getRequestURI();
+        String type = uri.substring(uri.lastIndexOf('/') + 1);
+        return "redirect:/adm/dic/" + (TYPES.contains(type) ? type : "word");
+    }
 
     @GetMapping("/{type}")
     public String list(@PathVariable String type, Model model) {

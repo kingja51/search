@@ -17,6 +17,9 @@
         </form>
     </div>
 
+    <div th:if="${error}" class="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 text-red-600 rounded-lg text-[13px]"
+         th:text="${error}">오류</div>
+
     <p class="text-[12px] text-gray-500 mb-4">
         등록·수정·삭제 시 트랜잭션 커밋 후 캐시 evict + Nori 사전 리로드가 자동 수행됩니다.
         <span th:if="${type == 'word'}" class="text-red-500">단어사전 변경을 기존 색인에 반영하려면 [색인 관리]에서 전체 재색인이 필요합니다.</span>
