@@ -5,9 +5,9 @@
 
 ## 현재 상태 요약 (2026-07-27)
 
-- **완료**: 설계 확정 → 1단계(기반 구축, MyBatis 전환 포함) → 2단계(분석·색인)
-- **대기 중인 검증**: 로컬 PostgreSQL 18 미설치 → 앱 기동 + Flyway + 색인 동기화 실동작 확인 불가
-- **다음 작업**: PostgreSQL 준비 → 기동 검증 → 3단계(검색 코어)
+- **완료**: 설계 확정 → 1단계(기반 구축, MyBatis 전환 포함) → 2단계(분석·색인) → 3단계(검색 코어)
+- **대기 중인 검증**: 로컬 PostgreSQL 18 미설치 → 앱 기동 + Flyway + 색인·검색 실동작 확인 불가
+- **다음 작업**: PostgreSQL 준비 → 기동·검색 검증 → 4단계(UI 고도화)
 
 ---
 
@@ -36,17 +36,19 @@
 | 분석기 단위 테스트 | ✅ | KoreanAnalyzerTest 4건 통과 (품사 필터·복합명사·reload·빈입력) |
 | 샘플 데이터 색인 실검증 | ⏸ | **PostgreSQL 준비 후** — 기동 → tn_search_index 38건 내외 확인 |
 
-## 3단계: 검색 코어 ⏸ (다음 작업)
+## 3단계: 검색 코어 ✅
 
-| 작업 | 내용 |
-|---|---|
-| BannedWordService | 금지어 필터 (bannedWords 캐시), BLOCK 차단/MASK 처리 |
-| SynonymService | 동의어 확장 (synonyms 캐시), 그룹 내 OR |
-| SearchService | 파이프라인: 정규화→금지어→분석→확장→tsquery(AND/OR·qPrev)→FTS→로그 |
-| 검색 매퍼 | 개별 탭 쿼리(카테고리·기간·정렬 분기) + 전체 탭 그룹 쿼리(row_number, 그룹당 10건+총건수) |
-| HighlightService | escape → `<mark>` 치환(동의어 포함, 긴 단어 우선) → 발췌 |
-| KeywordLogService | @Async 로그 적재, 인기 검색어 MV 10분 갱신 스케줄, 내 검색어(session→IP 폴백) |
-| SearchUsrController /result | 검색 조건 9종 파라미터 바인딩, HTML fragment 응답 |
+| 작업 | 상태 | 산출물 |
+|---|---|---|
+| BannedWordService | ✅ | BLOCK 차단(부분 문자열) / MASK 토큰 제외, 요청당 스냅샷 (캐시는 5단계) |
+| SynonymService | ✅ | group_id 기반 단어→그룹 확장 맵, 그룹 내 OR |
+| SearchService | ✅ | 파이프라인 전체: 정규화→금지어(qPrev 재검사)→분석→확장→tsquery(AND/OR·qPrev AND)→기간(dateFrom/dateTo 우선)→FTS→하이라이트→@Async 로그 |
+| 검색 매퍼 (SearchMapper) | ✅ | searchTab(정렬 쿼리 분기)·searchGrouped(row_number+type_total)·countByType·countByCategory |
+| HighlightService | ✅ | escape→`<mark>`(긴 단어 우선 단일 패스)→발췌, 테스트 5건 |
+| KeywordLogService | ✅ | @Async 적재(검색자 IP 선세팅), MV 10분 갱신 스케줄, 인기·내 검색어(session→IP 폴백) |
+| AuditInterceptor 보완 | ✅ | created_ip/by가 이미 세팅된 경우 유지 — @Async 로그의 검색자 IP 유실 방지 |
+| SearchUsrController /result | ✅ | 조건 9종 바인딩(SearchCondition), 기본 결과 화면(usr/results.html — 4단계에서 HTMX 고도화) |
+| 검색 실동작 검증 | ⏸ | **PostgreSQL 준비 후** — /result?q=휴대폰 → 동의어(핸드폰) 결과·하이라이트 확인 |
 
 ## 4단계: UI ⏸
 

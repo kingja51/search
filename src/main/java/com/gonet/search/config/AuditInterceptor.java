@@ -49,19 +49,23 @@ public class AuditInterceptor implements Interceptor {
 
     private void fill(BaseEntity entity, SqlCommandType commandType) {
         OffsetDateTime now = OffsetDateTime.now();
-        String ip = ClientIpHolder.get();
-        String by = currentAuditor();
         if (commandType == SqlCommandType.INSERT) {
+            // 값이 이미 세팅돼 있으면 유지 — @Async 스레드에서 INSERT되는 로그가
+            // 요청 시점에 캡처한 검색자 IP/ID를 서버 IP로 덮어쓰지 않도록 한다
             if (entity.getCreatedAt() == null) {
                 entity.setCreatedAt(now);
             }
-            entity.setCreatedIp(ip);
-            entity.setCreatedBy(by);
+            if (entity.getCreatedIp() == null) {
+                entity.setCreatedIp(ClientIpHolder.get());
+            }
+            if (entity.getCreatedBy() == null) {
+                entity.setCreatedBy(currentAuditor());
+            }
             entity.setUpdatedAt(now);
         } else if (commandType == SqlCommandType.UPDATE) {
             entity.setUpdatedAt(now);
-            entity.setUpdatedIp(ip);
-            entity.setUpdatedBy(by);
+            entity.setUpdatedIp(ClientIpHolder.get());
+            entity.setUpdatedBy(currentAuditor());
         }
     }
 

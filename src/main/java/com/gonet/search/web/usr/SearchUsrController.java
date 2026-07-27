@@ -1,14 +1,33 @@
 package com.gonet.search.web.usr;
 
+import com.gonet.search.dto.SearchCondition;
+import com.gonet.search.dto.SearchResponse;
+import com.gonet.search.service.SearchService;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 
-/** 사용자 검색 화면. 검색 결과(/result)는 3단계(검색 코어)에서 구현한다. */
+/** 사용자 검색 화면 (메인 + 결과). HTMX 고도화(무한스크롤·상세검색 패널)는 4단계에서. */
 @Controller
+@RequiredArgsConstructor
 public class SearchUsrController {
+
+    private final SearchService searchService;
 
     @GetMapping("/")
     public String main() {
         return "usr/main";
+    }
+
+    @GetMapping("/result")
+    public String result(@ModelAttribute("cond") SearchCondition cond,
+                         HttpServletRequest request,
+                         Model model) {
+        SearchResponse res = searchService.search(cond, request.getSession().getId());
+        model.addAttribute("res", res);
+        return "usr/results";
     }
 }

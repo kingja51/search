@@ -15,7 +15,7 @@ spring:
 
 mybatis:
   mapper-locations: classpath:mybatis/mapper/*.xml
-  type-aliases-package: com.gonet.search.domain
+  type-aliases-package: com.gonet.search.domain, com.gonet.search.dto
   configuration:
     map-underscore-to-camel-case: true   # snake_case 컬럼 → camelCase 필드 자동 매핑
 

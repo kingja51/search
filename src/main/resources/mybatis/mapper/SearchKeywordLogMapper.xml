@@ -16,4 +16,36 @@
         )
     </insert>
 
+    <select id="findPopular" resultType="KeywordStat">
+        SELECT keyword, search_count, last_searched_at
+        FROM vw_search_popular_keyword
+        ORDER BY search_count DESC, last_searched_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 내 검색어: created_at=검색 시각, created_ip=검색자 IP (감사 컬럼이 로그 컬럼을 겸함) -->
+    <select id="findRecentBySession" resultType="KeywordStat">
+        SELECT keyword, max(created_at) AS last_searched_at
+        FROM log_search_keyword
+        WHERE session_id = #{sessionId}
+          AND is_blocked = false
+        GROUP BY keyword
+        ORDER BY last_searched_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findRecentByIp" resultType="KeywordStat">
+        SELECT keyword, max(created_at) AS last_searched_at
+        FROM log_search_keyword
+        WHERE created_ip = #{clientIp}
+          AND is_blocked = false
+        GROUP BY keyword
+        ORDER BY last_searched_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <update id="refreshPopular">
+        REFRESH MATERIALIZED VIEW CONCURRENTLY vw_search_popular_keyword
+    </update>
+
 </mapper>

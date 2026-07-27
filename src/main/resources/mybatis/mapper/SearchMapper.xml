@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gonet.search.mapper.SearchMapper">
+
+    <sql id="matchWhere">
+        WHERE search_vec @@ query
+        <if test="docType != null">AND doc_type = #{docType}</if>
+        <if test="category != null">AND category = #{category}</if>
+        <if test="fromTs != null">AND source_updated_at &gt;= #{fromTs}</if>
+        <if test="toTs != null">AND source_updated_at &lt; #{toTs}</if>
+    </sql>
+
+    <!-- 개별 탭 검색 — 정렬은 쿼리 분기(정확도/최신순)로 인덱스를 태운다 (DESIGN.md 4.3) -->
+    <select id="searchTab" resultType="SearchResultItem">
+        SELECT doc_type, doc_id, title, summary, link_url, category, source_updated_at,
+               ts_rank(search_vec, query) AS rank
+        FROM tn_search_index,
+             to_tsquery('simple', #{tsquery}) query
+        <include refid="matchWhere"/>
+        <choose>
+            <when test="sort == 'latest'">ORDER BY source_updated_at DESC, doc_id DESC</when>
+            <otherwise>ORDER BY rank DESC, doc_id DESC</otherwise>
+        </choose>
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <!-- 전체 탭: 도메인별 상위 N건 + 그룹 총건수를 한 번의 윈도우 쿼리로 (DESIGN.md 4.3) -->
+    <select id="searchGrouped" resultType="SearchResultItem">
+        SELECT * FROM (
+            SELECT doc_type, doc_id, title, summary, link_url, category, source_updated_at,
+                   ts_rank(search_vec, query) AS rank,
+                   row_number() OVER (PARTITION BY doc_type
+                       <choose>
+                           <when test="sort == 'latest'">ORDER BY source_updated_at DESC, doc_id DESC</when>
+                           <otherwise>ORDER BY ts_rank(search_vec, query) DESC, doc_id DESC</otherwise>
+                       </choose>
+                   ) AS rn,
+                   count(*) OVER (PARTITION BY doc_type) AS type_total
+            FROM tn_search_index,
+                 to_tsquery('simple', #{tsquery}) query
+            WHERE search_vec @@ query
+            <if test="fromTs != null">AND source_updated_at &gt;= #{fromTs}</if>
+            <if test="toTs != null">AND source_updated_at &lt; #{toTs}</if>
+        ) t
+        WHERE rn &lt;= #{groupSize}
+        ORDER BY doc_type, rn
+    </select>
+
+    <select id="countByType" resultType="KeyCount">
+        SELECT doc_type AS key, count(*) AS count
+        FROM tn_search_index,
+             to_tsquery('simple', #{tsquery}) query
+        WHERE search_vec @@ query
+        <if test="fromTs != null">AND source_updated_at &gt;= #{fromTs}</if>
+        <if test="toTs != null">AND source_updated_at &lt; #{toTs}</if>
+        GROUP BY doc_type
+    </select>
+
+    <select id="countByCategory" resultType="KeyCount">
+        SELECT category AS key, count(*) AS count
+        FROM tn_search_index,
+             to_tsquery('simple', #{tsquery}) query
+        WHERE search_vec @@ query
+          AND doc_type = #{docType}
+          AND category IS NOT NULL
+        <if test="fromTs != null">AND source_updated_at &gt;= #{fromTs}</if>
+        <if test="toTs != null">AND source_updated_at &lt; #{toTs}</if>
+        GROUP BY category
+        ORDER BY count DESC, category
+    </select>
+
+</mapper>
