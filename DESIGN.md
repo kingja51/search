@@ -367,7 +367,7 @@ CREATE TABLE tn_search_index (
     doc_type     VARCHAR(20)  NOT NULL,        -- CONTENT / FILE / BBS / MENU
     doc_id       BIGINT       NOT NULL,
     title        VARCHAR(500) NOT NULL,
-    summary      VARCHAR(300),                 -- 결과 목록용 요약 (body 앞부분)
+    summary      VARCHAR(2000),                -- 결과 목록 출력용 본문 (body 앞 2000자, 하이라이트 대상)
     link_url     VARCHAR(500) NOT NULL,
     category     VARCHAR(100),
     tokens       TEXT NOT NULL,                -- Nori 분석 결과 (공백 구분)
@@ -603,6 +603,55 @@ LIMIT :size OFFSET :offset;
 모든 조건은 URL 쿼리스트링에 담겨 (`/result?q=케이스&qPrev=휴대폰&dateFrom=2026-07-01&dateTo=2026-07-27&op=AND`)
 북마크·공유·뒤로가기가 자연스럽게 동작한다. HTMX는 이 URL을 `hx-get`으로 호출해 결과 영역만 교체.
 
+**검색 결과 출력 규칙**
+
+기본 출력 필드 (모든 탭 공통):
+
+| 필드 | 출처 | 비고 |
+|---|---|---|
+| 제목 | `tn_search_index.title` | 키워드 하이라이트 적용 |
+| 내용 | `tn_search_index.summary` (본문 앞 **2000자**) | 키워드 하이라이트 적용, 화면에는 키워드 주변 발췌 우선 |
+| 등록일 | `tn_search_index.source_updated_at` | `yyyy.MM.dd` 표기 |
+| 링크 | `tn_search_index.link_url` | 제목 클릭 시 이동 |
+
+**전체 탭 = 카테고리(도메인)별 그룹 출력**: 설정된 그룹 순서대로 각 그룹 **10건씩** 보여주고,
+그룹 총건수가 10을 넘으면 그룹 하단에 **"더보기 (N건)"** 버튼 → 클릭 시 해당 카테고리 탭으로 전환되어
+**상세 페이징**(무한스크롤 + 카테고리 필터·정렬·기간 사용 가능)으로 이어진다.
+
+```sql
+-- 전체 탭: 도메인별 상위 10건 + 그룹 총건수를 한 번의 쿼리로
+SELECT * FROM (
+    SELECT doc_type, doc_id, title, summary, link_url, category, source_updated_at,
+           ts_rank(search_vec, query) AS rank,
+           row_number() OVER (PARTITION BY doc_type
+                              ORDER BY ts_rank(search_vec, query) DESC, doc_id DESC) AS rn,
+           count(*)    OVER (PARTITION BY doc_type) AS type_total   -- "더보기 (N건)" 표시용
+    FROM tn_search_index, to_tsquery('simple', :tsquery) query
+    WHERE search_vec @@ query
+      AND (:fromTs IS NULL OR source_updated_at >= :fromTs)
+      AND (:toTs   IS NULL OR source_updated_at <  :toTs)
+) t
+WHERE rn <= :groupSize      -- 기본 10
+ORDER BY array_position(:groupOrder, doc_type), rn;   -- 그룹 순서는 설정값
+```
+
+- `sort=latest`일 때는 PARTITION 내 `ORDER BY source_updated_at DESC`로 교체
+- 그룹 순서·건수는 설정 외부화: `search.result.group-order`(기본 CONTENT, BBS, FILE, MENU), `group-size`(기본 10)
+- 개별 탭은 기존 상세 페이징 쿼리(LIMIT/OFFSET + 무한스크롤) 그대로 사용
+
+**키워드 하이라이트** — 애플리케이션 레이어에서 처리한다 (ts_headline 대신):
+
+```
+1. HTML 이스케이프         summary·title 원문을 먼저 escape (XSS 차단)
+2. 하이라이트 대상 수집     분석 토큰 + 동의어 확장어 전부   예: [휴대폰, 핸드폰, 스마트폰, 케이스]
+3. 대소문자 무시 치환       일치 구간을 <mark>…</mark> 로 감싼다 (긴 단어부터 치환해 부분 중복 방지)
+4. 발췌(snippet)           첫 번째 일치 위치 앞뒤로 잘라 목록에 표시, 일치 없으면 앞부분 표시
+```
+
+- ts_headline을 쓰지 않는 이유: tsvector가 Nori 토큰 기반(`simple`)이라 원문과 어긋날 수 있고,
+  동의어 하이라이트(검색어 "휴대폰"으로 결과의 "핸드폰"도 강조)는 앱에서만 정확히 처리 가능
+- `<mark>` 태그만 허용하고 나머지는 escape된 상태 유지 — Thymeleaf에서 `th:utext` 사용 구간 최소화
+
 **내 검색어 (IP 기준)** — `log_search_keyword.client_ip`로 요청자의 최근 검색어를 되돌려준다:
 
 ```sql
@@ -704,6 +753,10 @@ search:
     keep-pos: NNG, NNP, SL, SN   # 색인·검색 대상 품사 (변경 시 전체 재색인 필요)
   keyword:
     popular-refresh-cron: "0 */10 * * * *"  # 인기 검색어 MV 자동 갱신 (10분마다)
+  result:
+    group-order: CONTENT, BBS, FILE, MENU   # 전체 탭 카테고리 그룹 출력 순서
+    group-size: 10                          # 그룹당 노출 건수 (초과 시 "더보기")
+    summary-length: 2000                    # 목록 출력 본문 길이
 ```
 
 - context-path가 `/search`이므로 실제 접근 URL은 `http://host/search/`, `http://host/search/adm/...`
@@ -836,7 +889,8 @@ templates/
 │       └─ admin.html          # 관리자 레이아웃 (사이드 메뉴 포함)
 ├─ usr/
 │   ├─ main.html               # 검색 메인 (layout:decorate="~{layout/search/default}")
-│   ├─ results.html            # 검색 결과 fragment (HTMX 부분 응답)
+│   ├─ results.html            # 검색 결과 fragment (전체 탭: 그룹 뷰 / 개별 탭: 페이징 뷰)
+│   ├─ result-item.html        # 결과 1건 fragment (제목·내용·등록일·링크, 하이라이트 적용)
 │   └─ autocomplete.html       # 자동완성 드롭다운 fragment
 └─ adm/
     ├─ dic-list.html           # 사전 목록 (layout:decorate="~{layout/search/admin}")
@@ -863,6 +917,9 @@ templates/
 | 검색 통계 | `GET /adm/stats` | StatsAdmController | 기간별 검색량, 인기검색어, 무결과 검색어 |
 
 검색 결과 화면은 **탭별 건수**(전체 124 · 콘텐츠 80 · 파일 21 · 게시판 20 · 메뉴 3)를 함께 표시한다.
+**전체 탭은 카테고리별 그룹 뷰**: 설정 순서(컨텐츠→게시판→파일→메뉴)대로 그룹당 10건 + "더보기 (N건)" 버튼,
+클릭 시 해당 탭의 상세 페이징으로 전환. 결과 1건은 제목·내용(2000자 발췌)·등록일·링크를 기본 출력하고
+검색 키워드(동의어 포함)는 `<mark>` 하이라이트 처리한다.
 무결과 검색어(`result_count = 0`) 리포트는 **사전을 보강할 단서**가 되므로 통계 화면에 반드시 포함.
 
 > **관리자 화면(`adm/*`)과 권한(Spring Security)은 추후 개발.**
@@ -929,3 +986,5 @@ templates/
 17. **인기 검색어는 완전 자동 생성** — 로그 적재(@Async) → MV 10분 주기 CONCURRENTLY 갱신 → 캐시(1분) → 화면. 수동 개입 없음, 금지어 차단 검색은 집계에서 자동 제외.
 18. **검색식 조합 규칙 고정** — 동의어 확장은 항상 그룹 내 OR, op(AND/OR)는 검색어 그룹 간 결합에만 적용, 결과 내 재검색(qPrev)은 항상 AND. qPrev도 금지어 검사·형태소 분석을 다시 거쳐 URL 조작 우회를 차단.
 19. **상세검색 조건은 URL 쿼리스트링으로 유지** — dateFrom/dateTo(기간 직접 지정, period보다 우선), qPrev(결과 내 재검색 칩). 북마크·공유·뒤로가기 호환.
+20. **전체 탭은 카테고리별 그룹 출력** — row_number() 윈도우 쿼리 한 번으로 그룹당 10건 + 그룹 총건수를 조회. "더보기"는 별도 페이지가 아니라 해당 탭 상세 페이징으로 전환. 그룹 순서·건수는 설정 외부화.
+21. **하이라이트는 앱 레이어 처리** — escape 후 `<mark>` 치환(긴 단어 우선). 동의어까지 강조 가능하고 XSS 안전. ts_headline은 Nori 토큰 기반 색인과 어긋날 수 있어 미사용. 목록 본문은 색인에 저장한 앞 2000자에서 키워드 주변 발췌.
